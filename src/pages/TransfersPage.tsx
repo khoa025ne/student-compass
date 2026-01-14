@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { RequestStatusBadge, StatusBadge } from '@/components/ui/status-badge';
@@ -31,74 +31,50 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api';
+import type { TransferRequest, MyEnrollment } from '@/types';
 
-// Mock data
-const mockTransferRequests = [
-  {
-    id: 1,
-    studentName: 'Nguyễn Văn A',
-    fromClass: 'CS101-01',
-    fromCourseName: 'Lập Trình Web',
-    toClass: 'CS101-02',
-    toCourseName: 'Lập Trình Web',
-    status: 'Pending' as const,
-    createdAt: '2024-01-11T10:00:00Z',
-    reason: 'Trùng lịch với môn khác',
-  },
-  {
-    id: 2,
-    studentName: 'Nguyễn Văn A',
-    fromClass: 'MA101-01',
-    fromCourseName: 'Toán Cao Cấp',
-    toClass: 'MA101-02',
-    toCourseName: 'Toán Cao Cấp',
-    status: 'Approved' as const,
-    createdAt: '2024-01-05T14:30:00Z',
-    reason: 'Muốn học với giảng viên khác',
-    processedAt: '2024-01-06T09:00:00Z',
-  },
-  {
-    id: 3,
-    studentName: 'Nguyễn Văn A',
-    fromClass: 'EN101-01',
-    fromCourseName: 'Tiếng Anh 1',
-    toClass: 'EN101-03',
-    toCourseName: 'Tiếng Anh 1',
-    status: 'Rejected' as const,
-    createdAt: '2024-01-02T08:00:00Z',
-    reason: 'Lớp mới gần nhà hơn',
-    processedAt: '2024-01-03T11:00:00Z',
-    rejectionReason: 'Lớp đích đã đầy',
-  },
-];
-
-const mockCurrentEnrollments = [
-  { id: 1, classCode: 'CS101-01', courseName: 'Lập Trình Web', schedule: 'Thứ 2 08:00-10:00' },
-  { id: 2, classCode: 'CS102-02', courseName: 'Cơ Sở Dữ Liệu', schedule: 'Thứ 4 10:30-12:30' },
-  { id: 3, classCode: 'MA101-01', courseName: 'Toán Cao Cấp', schedule: 'Thứ 3 08:00-10:00' },
-];
-
-const mockAvailableTargets: Record<string, { id: number; classCode: string; schedule: string; availableSlots: number }[]> = {
-  'CS101-01': [
-    { id: 10, classCode: 'CS101-02', schedule: 'Thứ 4 14:00-16:00', availableSlots: 5 },
-    { id: 11, classCode: 'CS101-03', schedule: 'Thứ 6 08:00-10:00', availableSlots: 3 },
-  ],
-  'CS102-02': [
-    { id: 20, classCode: 'CS102-01', schedule: 'Thứ 2 14:00-16:00', availableSlots: 8 },
-  ],
-  'MA101-01': [
-    { id: 30, classCode: 'MA101-02', schedule: 'Thứ 5 10:30-12:30', availableSlots: 2 },
-  ],
-};
+// Extended transfer request type with additional fields
+interface ExtendedTransferRequest extends TransferRequest {
+  fromCourseName?: string;
+  toCourseName?: string;
+  reason?: string;
+  processedAt?: string;
+  rejectionReason?: string;
+}
 
 export default function TransfersPage() {
+  const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedFrom, setSelectedFrom] = useState<string>('');
   const [selectedTo, setSelectedTo] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [requests, setRequests] = useState(mockTransferRequests);
+  const [requests, setRequests] = useState<ExtendedTransferRequest[]>([]);
+  const [enrollments, setEnrollments] = useState<MyEnrollment[]>([]);
+  const [availableTargets, setAvailableTargets] = useState<{ id: number; classCode: string; schedule: string; availableSlots: number }[]>([]);
 
-  const availableTargets = selectedFrom ? mockAvailableTargets[selectedFrom] || [] : [];
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [transferData, enrollmentData] = await Promise.all([
+        apiClient.getTransferRequests(),
+        apiClient.getMyEnrollments(),
+      ]);
+      setRequests(transferData);
+      setEnrollments(enrollmentData);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+      // Set empty state on error
+      setRequests([]);
+      setEnrollments([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!selectedFrom || !selectedTo) {
@@ -108,34 +84,33 @@ export default function TransfersPage() {
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const fromEnrollment = enrollments.find((e) => e.classCode === selectedFrom);
+      const toTarget = availableTargets.find((t) => t.classCode === selectedTo);
 
-    const fromEnrollment = mockCurrentEnrollments.find((e) => e.classCode === selectedFrom);
-    const toTarget = availableTargets.find((t) => t.classCode === selectedTo);
+      if (fromEnrollment && toTarget) {
+        const response = await apiClient.createTransferRequest({
+          fromCourseClassId: fromEnrollment.enrollmentId,
+          toCourseClassId: toTarget.id,
+        });
 
-    if (fromEnrollment && toTarget) {
-      const newRequest = {
-        id: Date.now(),
-        studentName: 'Nguyễn Văn A',
-        fromClass: selectedFrom,
-        fromCourseName: fromEnrollment.courseName,
-        toClass: selectedTo,
-        toCourseName: fromEnrollment.courseName,
-        status: 'Pending' as const,
-        createdAt: new Date().toISOString(),
-        reason: 'Lý do cá nhân',
-      };
-
-      setRequests((prev) => [newRequest, ...prev]);
+        setRequests((prev) => [{
+          ...response,
+          fromCourseName: fromEnrollment.courseName,
+          toCourseName: fromEnrollment.courseName,
+        }, ...prev]);
+        
+        toast.success('Yêu cầu chuyển lớp đã được gửi!');
+      }
+    } catch (error: unknown) {
+      console.error('Failed to create transfer request:', error);
+      toast.error('Không thể tạo yêu cầu chuyển lớp. Vui lòng thử lại!');
+    } finally {
+      setIsSubmitting(false);
+      setIsDialogOpen(false);
+      setSelectedFrom('');
+      setSelectedTo('');
     }
-
-    setIsSubmitting(false);
-    setIsDialogOpen(false);
-    setSelectedFrom('');
-    setSelectedTo('');
-
-    toast.success('Yêu cầu chuyển lớp đã được gửi!');
   };
 
   const getStatusIcon = (status: 'Pending' | 'Approved' | 'Rejected') => {
@@ -193,8 +168,8 @@ export default function TransfersPage() {
                     <SelectValue placeholder="Chọn lớp muốn chuyển" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockCurrentEnrollments.map((enrollment) => (
-                      <SelectItem key={enrollment.id} value={enrollment.classCode}>
+                    {enrollments.map((enrollment) => (
+                      <SelectItem key={enrollment.enrollmentId} value={enrollment.classCode}>
                         <div className="flex flex-col">
                           <span className="font-medium">{enrollment.courseName}</span>
                           <span className="text-xs text-muted-foreground">

@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Brain, TrendingUp, BookOpen, Target, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api';
+import type { AIAdviceResponse } from '@/types';
 
-// Mock AI advice data
-const mockAdvice = {
+// Mock AI advice data (fallback when API fails)
+const mockAdvice: AIAdviceResponse = {
   studentId: 1,
   studentName: 'Nguyễn Văn A',
   cumulativeGPA: 7.85,
@@ -49,36 +51,45 @@ const thinkingPhrases = [
 export default function AIAdvisorPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPhrase, setCurrentPhrase] = useState(0);
-  const [advice, setAdvice] = useState<typeof mockAdvice | null>(null);
+  const [advice, setAdvice] = useState<AIAdviceResponse | null>(null);
+  const phraseIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Simulate loading with thinking phrases
-    const phraseInterval = setInterval(() => {
-      setCurrentPhrase((prev) => (prev + 1) % thinkingPhrases.length);
-    }, 1500);
-
-    // Simulate API call
-    const loadTimeout = setTimeout(() => {
-      setAdvice(mockAdvice);
-      setIsLoading(false);
-      clearInterval(phraseInterval);
-    }, 5000);
-
+    fetchAdvice();
     return () => {
-      clearInterval(phraseInterval);
-      clearTimeout(loadTimeout);
+      if (phraseIntervalRef.current) {
+        clearInterval(phraseIntervalRef.current);
+      }
     };
   }, []);
 
-  const handleRefresh = () => {
+  const fetchAdvice = async () => {
     setIsLoading(true);
-    setAdvice(null);
     setCurrentPhrase(0);
+    
+    // Start thinking animation
+    phraseIntervalRef.current = setInterval(() => {
+      setCurrentPhrase((prev) => (prev + 1) % thinkingPhrases.length);
+    }, 1500);
 
-    setTimeout(() => {
+    try {
+      const data = await apiClient.getAIAdvice();
+      setAdvice(data);
+    } catch (error) {
+      console.error('Failed to fetch AI advice:', error);
+      // Use mock data if API fails
       setAdvice(mockAdvice);
+    } finally {
       setIsLoading(false);
-    }, 3000);
+      if (phraseIntervalRef.current) {
+        clearInterval(phraseIntervalRef.current);
+      }
+    }
+  };
+
+  const handleRefresh = () => {
+    setAdvice(null);
+    fetchAdvice();
   };
 
   return (

@@ -15,7 +15,12 @@ import CoursesPage from "@/pages/CoursesPage";
 import GradesPage from "@/pages/GradesPage";
 import AIAdvisorPage from "@/pages/AIAdvisorPage";
 import TransfersPage from "@/pages/TransfersPage";
+import ChangePasswordPage from "@/pages/ChangePasswordPage";
+import ProfilePage from "@/pages/ProfilePage";
+import NotificationsPage from "@/pages/NotificationsPage";
 import NotFound from "@/pages/NotFound";
+import AdminAccountsPage from "@/pages/AdminAccountsPage";
+import ManagerDashboardPage from "@/pages/ManagerDashboardPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,8 +31,20 @@ const queryClient = new QueryClient({
   },
 });
 
+// Helper function to get default route based on role
+function getDefaultRoute(roleName: string | undefined): string {
+  switch (roleName) {
+    case 'Admin':
+      return '/admin/accounts';
+    case 'Manager':
+      return '/manager';
+    default:
+      return '/dashboard';
+  }
+}
+
 function AppRoutes() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   return (
     <Routes>
@@ -35,11 +52,45 @@ function AppRoutes() {
       <Route
         path="/login"
         element={
-          isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
+          isAuthenticated ? <Navigate to={getDefaultRoute(user?.roleName)} replace /> : <LoginPage />
         }
       />
 
-      {/* Protected routes */}
+      {/* Change Password Route */}
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute>
+            <ChangePasswordPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Admin Routes */}
+      <Route
+        path="/admin/accounts"
+        element={
+          <ProtectedRoute allowedRoles={['Admin']}>
+            <AppLayout>
+              <AdminAccountsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Manager Routes */}
+      <Route
+        path="/manager"
+        element={
+          <ProtectedRoute allowedRoles={['Manager']}>
+            <AppLayout>
+              <ManagerDashboardPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Student/Teacher Protected routes */}
       <Route
         path="/dashboard"
         element={
@@ -100,12 +151,43 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <ProfilePage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <NotificationsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Redirects */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<RoleBasedRedirect />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
+}
+
+// Component to redirect based on user role
+function RoleBasedRedirect() {
+  const { isAuthenticated, user } = useAuthStore();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <Navigate to={getDefaultRoute(user?.roleName)} replace />;
 }
 
 const App = () => (

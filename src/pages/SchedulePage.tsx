@@ -1,7 +1,24 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api';
+import type { MyEnrollment } from '@/types';
+
+interface ScheduleItem {
+  id: number;
+  courseCode: string;
+  courseName: string;
+  classCode: string;
+  room: string;
+  teacher: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  color: string;
+}
 
 // Mock schedule data
 const mockSchedule = [
@@ -119,7 +136,92 @@ const getSchedulePosition = (startTime: string, endTime: string) => {
   return { top: `${top}%`, height: `${height}%` };
 };
 
+// Parse schedule string like "Thứ 2, 08:00-10:00" to structured data
+const parseScheduleString = (schedule: string): { dayOfWeek: string; startTime: string; endTime: string } | null => {
+  const match = schedule.match(/Thứ\s*(\d+),?\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+  if (!match) return null;
+  
+  const dayNumber = parseInt(match[1]);
+  const dayMap: Record<number, string> = {
+    2: 'Monday',
+    3: 'Tuesday',
+    4: 'Wednesday',
+    5: 'Thursday',
+    6: 'Friday',
+    7: 'Saturday',
+  };
+  
+  return {
+    dayOfWeek: dayMap[dayNumber] || 'Monday',
+    startTime: match[2],
+    endTime: match[3],
+  };
+};
+
+// Generate color based on course code
+const getColorForCourse = (courseCode: string): string => {
+  const colors = [
+    'from-cyan-500 to-teal-500',
+    'from-violet-500 to-purple-500',
+    'from-orange-500 to-amber-500',
+    'from-rose-500 to-pink-500',
+    'from-emerald-500 to-green-500',
+    'from-blue-500 to-indigo-500',
+    'from-red-500 to-orange-500',
+  ];
+  const hash = courseCode.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[hash % colors.length];
+};
+
 export default function SchedulePage() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+
+  useEffect(() => {
+    fetchSchedule();
+  }, []);
+
+  const fetchSchedule = async () => {
+    setIsLoading(true);
+    try {
+      const enrollments = await apiClient.getMyEnrollments();
+      
+      // Convert enrollments to schedule items
+      const scheduleItems: ScheduleItem[] = enrollments.flatMap((enrollment, index) => {
+        const parsed = parseScheduleString(enrollment.schedule);
+        if (!parsed) return [];
+        
+        return [{
+          id: index + 1,
+          courseCode: enrollment.courseCode,
+          courseName: enrollment.courseName,
+          classCode: enrollment.classCode,
+          room: enrollment.room,
+          teacher: enrollment.teacherName,
+          dayOfWeek: parsed.dayOfWeek,
+          startTime: parsed.startTime,
+          endTime: parsed.endTime,
+          color: getColorForCourse(enrollment.courseCode),
+        }];
+      });
+      
+      setSchedule(scheduleItems);
+    } catch (error) {
+      console.error('Failed to fetch schedule:', error);
+      // Use mock data as fallback
+      setSchedule(mockSchedule);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
   return (
     <div className="container mx-auto px-4 sm:px-6 space-y-8">
       {/* Header */}
@@ -139,7 +241,7 @@ export default function SchedulePage() {
       {/* Schedule Legend */}
       <GlassCard delay={0.1}>
         <div className="flex flex-wrap gap-3">
-          {mockSchedule
+          {schedule
             .filter((item, index, self) => 
               index === self.findIndex((t) => t.courseCode === item.courseCode)
             )
@@ -193,7 +295,7 @@ export default function SchedulePage() {
                 ))}
 
                 {/* Schedule items */}
-                {mockSchedule
+                {schedule
                   .filter((item) => item.dayOfWeek === day)
                   .map((item, index) => {
                     const position = getSchedulePosition(item.startTime, item.endTime);
@@ -238,7 +340,7 @@ export default function SchedulePage() {
       <div className="lg:hidden space-y-4">
         <h2 className="text-xl font-display font-bold">Danh sách môn học</h2>
         <div className="space-y-3">
-          {mockSchedule.map((item, index) => (
+          {schedule.map((item, index) => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, x: -20 }}

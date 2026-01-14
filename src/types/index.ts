@@ -1,10 +1,16 @@
-// User & Auth Types
+// ============ USER & AUTH TYPES ============
 export interface User {
-  id: number;
+  userId: number;
   email: string;
-  firstName: string;
-  lastName: string;
-  role: 'Student' | 'Teacher' | 'Manager' | 'Admin';
+  fullName: string;
+  phoneNumber?: string;
+  roleName: 'Student' | 'Teacher' | 'Manager' | 'Admin';
+  roleId: number;
+  isActive: boolean;
+  createdAt?: string;
+  lastLogin?: string | null;
+  mustChangePassword?: boolean;
+  hasGoogleAccount?: boolean;
 }
 
 export interface LoginRequest {
@@ -15,20 +21,65 @@ export interface LoginRequest {
 export interface LoginResponse {
   token: string;
   refreshToken: string;
+  expiresAt: string;
   user: User;
-  expiresIn: number;
+  mustChangePassword: boolean;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  fullName: string;
+  phoneNumber: string;
+}
+
+export interface RegisterResponse {
+  success: boolean;
+  message: string;
+  user: User;
+}
+
+export interface GoogleLoginRequest {
+  googleToken: string;
+}
+
+export interface ChangePasswordRequest {
+  oldPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface ChangePasswordResponse {
+  message: string;
+  success: boolean;
+}
+
+export interface AuthMeResponse {
+  userId: string;
+  email: string;
+  fullName: string;
+  role: string;
+  roleId: string;
 }
 
 export interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  setAuth: (user: User, token: string) => void;
+  mustChangePassword: boolean;
+  login: (email: string, password: string) => Promise<LoginResponse>;
+  loginWithGoogle: (googleToken: string) => Promise<LoginResponse>;
+  register: (data: RegisterRequest) => Promise<RegisterResponse>;
+  logout: () => Promise<void>;
+  changePassword: (data: ChangePasswordRequest) => Promise<ChangePasswordResponse>;
+  refreshTokens: () => Promise<void>;
+  setAuth: (user: User, token: string, refreshToken: string) => void;
+  clearAuth: () => void;
 }
 
-// Student Types
+// ============ STUDENT TYPES ============
 export interface Student {
   id: number;
   firstName: string;
@@ -44,7 +95,22 @@ export interface Student {
   status: 'Active' | 'Inactive' | 'Graduated' | 'Suspended';
 }
 
-// Academic Structure Types
+export interface CreateStudentRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  address: string;
+  gender: 'Male' | 'Female' | 'Other';
+  classId: number;
+}
+
+export interface UpdateStudentRequest extends Partial<CreateStudentRequest> {
+  status?: 'Active' | 'Inactive' | 'Graduated' | 'Suspended';
+}
+
+// ============ ACADEMIC STRUCTURE TYPES ============
 export interface Department {
   id: number;
   code: string;
@@ -73,6 +139,17 @@ export interface Course {
   prerequisiteCode: string | null;
 }
 
+export interface CreateCourseRequest {
+  code: string;
+  name: string;
+  description: string;
+  credits: number;
+  departmentId: number;
+  prerequisiteId?: number | null;
+}
+
+export interface UpdateCourseRequest extends Partial<CreateCourseRequest> {}
+
 export interface CourseClass {
   id: number;
   code: string;
@@ -88,7 +165,21 @@ export interface CourseClass {
   enrollmentPercentage: number;
 }
 
-// Enrollment Types
+export interface CreateClassRequest {
+  code: string;
+  courseId: number;
+  semesterId: number;
+  maxCapacity: number;
+  room: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  teacherId: number;
+}
+
+export interface UpdateClassRequest extends Partial<CreateClassRequest> {}
+
+// ============ ENROLLMENT TYPES ============
 export interface AvailableClass {
   courseClassId: number;
   classCode: string;
@@ -143,7 +234,7 @@ export interface MyEnrollment {
   currentGrade: string | null;
 }
 
-// Transfer Request Types
+// ============ TRANSFER REQUEST TYPES ============
 export interface TransferRequest {
   id: number;
   studentName: string;
@@ -158,7 +249,7 @@ export interface CreateTransferRequest {
   toCourseClassId: number;
 }
 
-// Grade Types
+// ============ GRADE TYPES ============
 export interface CourseGrade {
   courseCode: string;
   courseName: string;
@@ -181,7 +272,37 @@ export interface TranscriptResponse {
   courses: CourseGrade[];
 }
 
-// AI Advisor Types
+export interface CreateGradeRequest {
+  studentId: number;
+  courseClassId: number;
+  participation?: number;
+  quiz?: number;
+  assignment?: number;
+  midterm?: number;
+  final?: number;
+}
+
+export interface UpdateGradeRequest extends Partial<CreateGradeRequest> {}
+
+// ============ NOTIFICATION TYPES ============
+export interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  isRead: boolean;
+  createdAt: string;
+  userId: number;
+}
+
+export interface CreateNotificationRequest {
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  userId?: number;
+}
+
+// ============ AI ADVISOR TYPES ============
 export interface AIAdviceResponse {
   studentId: number;
   studentName: string;
@@ -190,7 +311,7 @@ export interface AIAdviceResponse {
   generatedAt: string;
 }
 
-// API Response Types
+// ============ API RESPONSE TYPES ============
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -202,7 +323,27 @@ export interface ApiResponse<T> {
 
 export interface ApiError {
   success: false;
-  error: string;
-  errorCode: string;
-  statusCode: number;
+  message: string;
+  error?: string;
+  errorCode?: string;
+  statusCode?: number;
+}
+
+// ============ USER MANAGEMENT TYPES (ADMIN) ============
+export interface CreateUserRequest {
+  email: string;
+  fullName: string;
+  phoneNumber: string;
+  roleId: number;
+}
+
+export interface UpdateUserRequest {
+  fullName?: string;
+  phoneNumber?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateUserRoleRequest {
+  userId: number;
+  newRoleId: number;
 }

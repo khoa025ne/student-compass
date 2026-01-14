@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -27,9 +27,16 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api';
+import type { AvailableClass } from '@/types';
 
-// Mock available classes
-const mockAvailableClasses = [
+// Extended type with department for filtering
+interface AvailableClassWithDepartment extends AvailableClass {
+  department?: string;
+}
+
+// Mock available classes (fallback when API fails)
+const mockAvailableClasses: AvailableClassWithDepartment[] = [
   {
     courseClassId: 1,
     classCode: 'CS201-01',
@@ -119,12 +126,39 @@ const mockAvailableClasses = [
 const departments = ['Tất cả', 'CNTT', 'QTKD', 'Ngoại ngữ'];
 
 export default function CoursesPage() {
+  const [availableClasses, setAvailableClasses] = useState<AvailableClassWithDepartment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('Tất cả');
   const [enrollingId, setEnrollingId] = useState<number | null>(null);
   const [enrolledIds, setEnrolledIds] = useState<number[]>([]);
 
-  const filteredClasses = mockAvailableClasses.filter((cls) => {
+  useEffect(() => {
+    fetchAvailableClasses();
+  }, []);
+
+  const fetchAvailableClasses = async () => {
+    setIsLoading(true);
+    try {
+      const data = await apiClient.getAvailableClasses();
+      // Add mock department for filtering (in production, this would come from API)
+      const classesWithDept = data.map(cls => ({
+        ...cls,
+        department: cls.classCode.startsWith('CS') ? 'CNTT' : 
+                   cls.classCode.startsWith('BA') ? 'QTKD' : 
+                   cls.classCode.startsWith('EN') ? 'Ngoại ngữ' : 'Khác'
+      }));
+      setAvailableClasses(classesWithDept);
+    } catch (error) {
+      console.error('Failed to fetch available classes:', error);
+      // Use mock data if API fails
+      setAvailableClasses(mockAvailableClasses);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredClasses = availableClasses.filter((cls) => {
     const matchesSearch =
       cls.courseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cls.classCode.toLowerCase().includes(searchQuery.toLowerCase());
@@ -134,7 +168,7 @@ export default function CoursesPage() {
   });
 
   const handleEnroll = async (courseClassId: number) => {
-    const classInfo = mockAvailableClasses.find((c) => c.courseClassId === courseClassId);
+    const classInfo = availableClasses.find((c) => c.courseClassId === courseClassId);
     
     if (!classInfo) return;
 
@@ -150,22 +184,38 @@ export default function CoursesPage() {
 
     setEnrollingId(courseClassId);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await apiClient.enroll({ courseClassId });
+      
+      if (response.success) {
+        setEnrolledIds((prev) => [...prev, courseClassId]);
+        toast.success(
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <div>
+              <p className="font-semibold">Đăng ký thành công!</p>
+              <p className="text-sm text-muted-foreground">{classInfo.courseName}</p>
+            </div>
+          </div>
+        );
+      } else {
+        toast.error(response.message || 'Đăng ký thất bại');
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+    } finally {
+      setEnrollingId(null);
+    }
+  };
 
-    setEnrolledIds((prev) => [...prev, courseClassId]);
-    setEnrollingId(null);
-    
-    toast.success(
-      <div className="flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-primary" />
-        <div>
-          <p className="font-semibold">Đăng ký thành công!</p>
-          <p className="text-sm text-muted-foreground">{classInfo.courseName}</p>
-        </div>
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
       </div>
     );
-  };
+  }
 
   return (
     <div className="container mx-auto px-4 sm:px-6 space-y-8">

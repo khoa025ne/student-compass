@@ -1,8 +1,10 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { GlassCard } from '@/components/ui/glass-card';
 import { StatCard } from '@/components/ui/stat-card';
 import { StatusBadge, GradeBadge } from '@/components/ui/status-badge';
+import { LoadingSpinner } from '@/components/ui/loading';
 import {
   BookOpen,
   Calendar,
@@ -14,48 +16,40 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { apiClient } from '@/lib/api';
+import type { MyEnrollment, CourseGrade, TranscriptResponse } from '@/types';
 
-// Mock data for dashboard
-const mockStats = {
-  gpa: 7.85,
-  credits: 42,
-  courses: 5,
-  attendance: 95,
+interface DashboardStats {
+  gpa: number;
+  credits: number;
+  courses: number;
+  attendance: number;
+}
+
+interface TodayScheduleItem {
+  id: number;
+  time: string;
+  course: string;
+  code: string;
+  room: string;
+  teacher: string;
+}
+
+interface CurrentCourseItem {
+  id: number;
+  code: string;
+  name: string;
+  credits: number;
+  grade: string;
+}
+
+// Default empty stats
+const defaultStats: DashboardStats = {
+  gpa: 0,
+  credits: 0,
+  courses: 0,
+  attendance: 0,
 };
-
-const mockTodaySchedule = [
-  {
-    id: 1,
-    time: '08:00 - 10:00',
-    course: 'Lập Trình Web',
-    code: 'CS101-01',
-    room: 'A101',
-    teacher: 'Nguyễn Văn A',
-  },
-  {
-    id: 2,
-    time: '10:30 - 12:30',
-    course: 'Cơ Sở Dữ Liệu',
-    code: 'CS102-02',
-    room: 'B205',
-    teacher: 'Trần Thị B',
-  },
-  {
-    id: 3,
-    time: '14:00 - 16:00',
-    course: 'Toán Cao Cấp',
-    code: 'MA101-01',
-    room: 'C301',
-    teacher: 'Lê Văn C',
-  },
-];
-
-const mockCurrentCourses = [
-  { id: 1, code: 'CS101', name: 'Lập Trình Web', credits: 3, grade: 'B+' },
-  { id: 2, code: 'CS102', name: 'Cơ Sở Dữ Liệu', credits: 3, grade: 'A' },
-  { id: 3, code: 'MA101', name: 'Toán Cao Cấp', credits: 4, grade: 'B' },
-  { id: 4, code: 'EN101', name: 'Tiếng Anh 1', credits: 3, grade: 'A+' },
-];
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -72,6 +66,106 @@ const itemVariants = {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>(defaultStats);
+  const [todaySchedule, setTodaySchedule] = useState<TodayScheduleItem[]>([]);
+  const [currentCourses, setCurrentCourses] = useState<CurrentCourseItem[]>([]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    try {
+      const [enrollments, transcript] = await Promise.all([
+        apiClient.getMyEnrollments(),
+        apiClient.getMyGrades(),
+      ]);
+
+      // Calculate stats from transcript
+      if (transcript && transcript.courses && transcript.courses.length > 0) {
+        const totalCredits = transcript.courses.reduce((sum: number, g: CourseGrade) => sum + g.credits, 0);
+
+        setStats({
+          gpa: transcript.cumulativeGPA,
+          credits: totalCredits,
+          courses: enrollments.length,
+          attendance: 95, // Placeholder, API doesn't provide this
+        });
+      } else {
+        setStats({
+          gpa: 0,
+          credits: 0,
+          courses: enrollments.length,
+          attendance: 0,
+        });
+      }
+
+      // Get today's day in Vietnamese format
+      const dayOfWeek = new Date().getDay();
+      const dayMap: Record<number, string> = {
+        0: 'CN',
+        1: 'Thứ 2',
+        2: 'Thứ 3',
+        3: 'Thứ 4',
+        4: 'Thứ 5',
+        5: 'Thứ 6',
+        6: 'Thứ 7',
+      };
+      const todayName = dayMap[dayOfWeek];
+
+      // Filter today's schedule
+      const todayItems = enrollments
+        .filter((e: MyEnrollment) => e.schedule.includes(todayName))
+        .map((e: MyEnrollment, index: number) => {
+          // Extract time from schedule like "Thứ 2, 08:00-10:00"
+          const timeMatch = e.schedule.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+          const time = timeMatch ? `${timeMatch[1]} - ${timeMatch[2]}` : 'TBD';
+
+          return {
+            id: index + 1,
+            time,
+            course: e.courseName,
+            code: e.classCode,
+            room: e.room,
+            teacher: e.teacherName,
+          };
+        });
+
+      setTodaySchedule(todayItems);
+
+      // Map enrollments to current courses with grades
+      const coursesWithGrades = enrollments.map((e: MyEnrollment, index: number) => {
+        const gradeInfo = transcript?.courses?.find((g: CourseGrade) => g.courseCode === e.courseCode);
+        return {
+          id: index + 1,
+          code: e.courseCode,
+          name: e.courseName,
+          credits: e.credits,
+          grade: gradeInfo?.letterGrade || 'N/A',
+        };
+      });
+
+      setCurrentCourses(coursesWithGrades.slice(0, 4));
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      // Reset to empty state on error
+      setStats(defaultStats);
+      setTodaySchedule([]);
+      setCurrentCourses([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 sm:px-6 space-y-8">
@@ -96,7 +190,7 @@ export default function DashboardPage() {
             transition={{ delay: 0.3 }}
             className="text-4xl md:text-5xl font-display font-bold text-primary-foreground mt-2"
           >
-            {user?.firstName} {user?.lastName}
+            {user?.fullName}
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, x: -20 }}
@@ -106,11 +200,11 @@ export default function DashboardPage() {
           >
             Chào mừng bạn quay lại. Học kỳ này bạn đang học{' '}
             <span className="text-primary-foreground font-semibold">
-              {mockStats.courses} môn
+              {stats.courses} môn
             </span>{' '}
             với tổng cộng{' '}
             <span className="text-primary-foreground font-semibold">
-              {mockStats.credits} tín chỉ
+              {stats.credits} tín chỉ
             </span>
             .
           </motion.p>
@@ -130,26 +224,26 @@ export default function DashboardPage() {
       >
         <StatCard
           title="GPA Tích Lũy"
-          value={mockStats.gpa.toFixed(2)}
+          value={stats.gpa.toFixed(2)}
           icon={<TrendingUp className="w-6 h-6" />}
           trend={{ value: 3.2, isPositive: true }}
           delay={0.1}
         />
         <StatCard
           title="Tín Chỉ Tích Lũy"
-          value={mockStats.credits}
+          value={stats.credits}
           icon={<BookOpen className="w-6 h-6" />}
           delay={0.2}
         />
         <StatCard
           title="Môn Đang Học"
-          value={mockStats.courses}
+          value={stats.courses}
           icon={<Calendar className="w-6 h-6" />}
           delay={0.3}
         />
         <StatCard
           title="Tỷ Lệ Chuyên Cần"
-          value={`${mockStats.attendance}%`}
+          value={`${stats.attendance}%`}
           icon={<Clock className="w-6 h-6" />}
           delay={0.4}
         />
@@ -174,7 +268,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {mockTodaySchedule.map((item, index) => (
+            {todaySchedule.map((item, index) => (
               <motion.div
                 key={item.id}
                 variants={itemVariants}
@@ -220,7 +314,7 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-3">
-              {mockCurrentCourses.map((course) => (
+              {currentCourses.map((course) => (
                 <div
                   key={course.id}
                   className="flex items-center justify-between p-3 rounded-xl bg-muted/50 hover:bg-muted/80 transition-colors"

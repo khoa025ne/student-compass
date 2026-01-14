@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
@@ -14,6 +14,11 @@ import {
   X,
   Moon,
   Sun,
+  Bell,
+  User,
+  Shield,
+  Users,
+  FileText,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -23,13 +28,23 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
-const navItems = [
+// Nav items for different roles
+const studentNavItems = [
   { path: '/dashboard', label: 'Trang chủ', icon: LayoutDashboard },
   { path: '/schedule', label: 'Lịch học', icon: Calendar },
   { path: '/courses', label: 'Đăng ký môn', icon: BookOpen },
   { path: '/grades', label: 'Bảng điểm', icon: GraduationCap },
   { path: '/ai-advisor', label: 'Tư vấn AI', icon: Sparkles },
   { path: '/transfers', label: 'Chuyển lớp', icon: ArrowRightLeft },
+  { path: '/notifications', label: 'Thông báo', icon: Bell },
+];
+
+const adminNavItems = [
+  { path: '/admin/accounts', label: 'Quản lý tài khoản', icon: Shield },
+];
+
+const managerNavItems = [
+  { path: '/manager', label: 'Quản lý học vụ', icon: GraduationCap },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -39,11 +54,23 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
-      document.documentElement.classList.add('dark');
-      return true;
+      document.documentElement.classList.remove('dark');
+      return false;
     }
-    return true;
+    return false;
   });
+
+  // Get nav items based on user role
+  const navItems = useMemo(() => {
+    switch (user?.roleName) {
+      case 'Admin':
+        return adminNavItems;
+      case 'Manager':
+        return managerNavItems;
+      default:
+        return studentNavItems;
+    }
+  }, [user?.roleName]);
 
   useEffect(() => {
     if (isDark) {
@@ -53,8 +80,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [isDark]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -126,18 +153,17 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </Button>
 
                 {/* User info */}
-                <div className="hidden sm:flex items-center gap-3">
+                <Link to="/profile" className="hidden sm:flex items-center gap-3 hover:opacity-80 transition-opacity">
                   <div className="text-right">
                     <p className="text-sm font-medium">
-                      {user?.firstName} {user?.lastName}
+                      {user?.fullName}
                     </p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
                   <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center text-primary-foreground font-bold">
-                    {user?.firstName?.[0]}
-                    {user?.lastName?.[0]}
+                    {user?.fullName?.split(' ').slice(-2).map(n => n[0]).join('')}
                   </div>
-                </div>
+                </Link>
 
                 {/* Logout */}
                 <Button
@@ -192,6 +218,19 @@ export function AppLayout({ children }: AppLayoutProps) {
                     </Link>
                   );
                 })}
+                <Link
+                  to="/profile"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
+                    location.pathname === '/profile'
+                      ? 'gradient-bg-subtle text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <User className="w-5 h-5" />
+                  <span className="font-medium">Hồ sơ</span>
+                </Link>
               </nav>
             </motion.div>
           )}

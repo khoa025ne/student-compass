@@ -6,45 +6,91 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LoadingSpinner } from '@/components/ui/loading';
-import { GraduationCap, Mail, Lock, ArrowRight } from 'lucide-react';
+import { GraduationCap, Mail, Lock, ArrowRight, UserPlus, Phone, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  
+  // Login state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  
+  // Register state
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isRegisterLoading, setIsRegisterLoading] = useState(false);
+  
   const navigate = useNavigate();
-  const { setAuth } = useAuthStore();
+  const { login, register } = useAuthStore();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsLoginLoading(true);
 
     try {
-      // For demo purposes, simulate login
-      // In production, this would call: await login(email, password);
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const response = await login(loginEmail, loginPassword);
       
-      // Simulate successful login
-      const mockUser = {
-        id: 1,
-        email: email,
-        firstName: 'Nguyễn',
-        lastName: 'Văn A',
-        role: 'Student' as const,
-      };
-      const mockToken = 'mock_jwt_token_' + Date.now();
-      
-      localStorage.setItem('auth_token', mockToken);
-      localStorage.setItem('auth_user', JSON.stringify(mockUser));
-      setAuth(mockUser, mockToken);
-      
-      toast.success('Đăng nhập thành công!');
-      navigate('/dashboard');
-    } catch {
-      toast.error('Email hoặc mật khẩu không đúng');
+      if (response.mustChangePassword) {
+        toast.info('Vui lòng đổi mật khẩu lần đầu đăng nhập');
+        navigate('/change-password');
+      } else {
+        toast.success('Đăng nhập thành công!');
+        navigate('/dashboard');
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || 'Email hoặc mật khẩu không đúng');
     } finally {
-      setIsLoading(false);
+      setIsLoginLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (registerPassword !== confirmPassword) {
+      toast.error('Mật khẩu xác nhận không khớp');
+      return;
+    }
+
+    if (registerPassword.length < 8) {
+      toast.error('Mật khẩu phải có ít nhất 8 ký tự');
+      return;
+    }
+
+    setIsRegisterLoading(true);
+
+    try {
+      const response = await register({
+        email: registerEmail,
+        password: registerPassword,
+        confirmPassword,
+        fullName,
+        phoneNumber,
+      });
+      
+      if (response.success) {
+        toast.success(response.message || 'Đăng ký thành công! Vui lòng đăng nhập.');
+        setActiveTab('login');
+        setLoginEmail(registerEmail);
+        // Clear register form
+        setRegisterEmail('');
+        setRegisterPassword('');
+        setConfirmPassword('');
+        setFullName('');
+        setPhoneNumber('');
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsRegisterLoading(false);
     }
   };
 
@@ -80,14 +126,14 @@ export default function LoginPage() {
         />
       </div>
 
-      {/* Login card */}
+      {/* Login/Register card */}
       <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
         className="w-full max-w-md relative z-10"
       >
-        <div className="glass-card-elevated rounded-3xl p-8 space-y-8">
+        <div className="glass-card-elevated rounded-3xl p-8 space-y-6">
           {/* Header */}
           <div className="text-center space-y-4">
             <motion.div
@@ -106,81 +152,194 @@ export default function LoginPage() {
               <h1 className="text-3xl font-display font-bold gradient-text">
                 Student Portal
               </h1>
-              <p className="text-muted-foreground mt-2">
-                Đăng nhập để tiếp tục
-              </p>
             </motion.div>
           </div>
 
-          {/* Form */}
-          <motion.form
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email
-              </Label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="student@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-              </div>
-            </div>
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'register')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Đăng nhập</TabsTrigger>
+              <TabsTrigger value="register">Đăng ký</TabsTrigger>
+            </TabsList>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">
-                Mật khẩu
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-              </div>
-            </div>
+            {/* Login Tab */}
+            <TabsContent value="login">
+              <motion.form
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                onSubmit={handleLogin}
+                className="space-y-6 pt-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="login-email" className="text-sm font-medium">
+                    Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="student@example.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+                </div>
 
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-12 rounded-xl gradient-bg hover:opacity-90 text-primary-foreground font-semibold text-base transition-all duration-300 group"
-            >
-              {isLoading ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                <>
-                  Đăng nhập
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </Button>
-          </motion.form>
+                <div className="space-y-2">
+                  <Label htmlFor="login-password" className="text-sm font-medium">
+                    Mật khẩu
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+                </div>
 
-          {/* Demo hint */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="text-center text-xs text-muted-foreground"
-          >
-            Demo: Nhập bất kỳ email và mật khẩu để đăng nhập
-          </motion.p>
+                <Button
+                  type="submit"
+                  disabled={isLoginLoading}
+                  className="w-full h-12 rounded-xl gradient-bg hover:opacity-90 text-primary-foreground font-semibold text-base transition-all duration-300 group"
+                >
+                  {isLoginLoading ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <>
+                      Đăng nhập
+                      <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </Button>
+              </motion.form>
+            </TabsContent>
+
+            {/* Register Tab */}
+            <TabsContent value="register">
+              <motion.form
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                onSubmit={handleRegister}
+                className="space-y-4 pt-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="register-name" className="text-sm font-medium">
+                    Họ và tên
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="register-name"
+                      type="text"
+                      placeholder="Nguyễn Văn A"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-email" className="text-sm font-medium">
+                    Email
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="student@example.com"
+                      value={registerEmail}
+                      onChange={(e) => setRegisterEmail(e.target.value)}
+                      required
+                      className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-phone" className="text-sm font-medium">
+                    Số điện thoại
+                  </Label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="register-phone"
+                      type="tel"
+                      placeholder="0912345678"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      required
+                      className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-password" className="text-sm font-medium">
+                    Mật khẩu
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={registerPassword}
+                      onChange={(e) => setRegisterPassword(e.target.value)}
+                      required
+                      minLength={8}
+                      className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-confirm" className="text-sm font-medium">
+                    Xác nhận mật khẩu
+                  </Label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="register-confirm"
+                      type="password"
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      className="pl-12 h-12 rounded-xl bg-muted/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isRegisterLoading}
+                  className="w-full h-12 rounded-xl gradient-bg hover:opacity-90 text-primary-foreground font-semibold text-base transition-all duration-300 group"
+                >
+                  {isRegisterLoading ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <>
+                      Đăng ký
+                      <UserPlus className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </Button>
+              </motion.form>
+            </TabsContent>
+          </Tabs>
         </div>
       </motion.div>
     </div>

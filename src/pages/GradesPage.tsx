@@ -1,88 +1,12 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GradeBadge, StatusBadge } from '@/components/ui/status-badge';
+import { LoadingSpinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Award, BookOpen, Target } from 'lucide-react';
-
-// Mock transcript data
-const mockTranscript = {
-  studentName: 'Nguyễn Văn A',
-  cumulativeGPA: 7.85,
-  currentSemester: '2024.1',
-  totalCredits: 42,
-  courses: [
-    {
-      courseCode: 'CS101',
-      courseName: 'Lập Trình Web',
-      credits: 3,
-      classCode: 'CS101-01',
-      participation: 8.5,
-      quiz: 7.5,
-      assignment: 8.0,
-      midterm: 7.5,
-      final: 8.0,
-      finalScore: 7.85,
-      letterGrade: 'B',
-      isOfficial: true,
-    },
-    {
-      courseCode: 'CS102',
-      courseName: 'Cơ Sở Dữ Liệu',
-      credits: 3,
-      classCode: 'CS102-02',
-      participation: 9.0,
-      quiz: 8.5,
-      assignment: 9.0,
-      midterm: 8.0,
-      final: 9.0,
-      finalScore: 8.65,
-      letterGrade: 'A',
-      isOfficial: true,
-    },
-    {
-      courseCode: 'MA101',
-      courseName: 'Toán Cao Cấp',
-      credits: 4,
-      classCode: 'MA101-01',
-      participation: 7.0,
-      quiz: 7.0,
-      assignment: 7.5,
-      midterm: 6.5,
-      final: 7.0,
-      finalScore: 6.95,
-      letterGrade: 'C+',
-      isOfficial: true,
-    },
-    {
-      courseCode: 'EN101',
-      courseName: 'Tiếng Anh 1',
-      credits: 3,
-      classCode: 'EN101-01',
-      participation: 9.5,
-      quiz: 9.0,
-      assignment: 9.5,
-      midterm: 9.0,
-      final: 9.5,
-      finalScore: 9.35,
-      letterGrade: 'A+',
-      isOfficial: true,
-    },
-    {
-      courseCode: 'CS103',
-      courseName: 'Thuật Toán',
-      credits: 3,
-      classCode: 'CS103-01',
-      participation: 8.0,
-      quiz: 7.5,
-      assignment: 8.5,
-      midterm: 7.0,
-      final: 8.0,
-      finalScore: 7.75,
-      letterGrade: 'B',
-      isOfficial: false,
-    },
-  ],
-};
+import { apiClient } from '@/lib/api';
+import type { TranscriptResponse } from '@/types';
 
 const getGPAColor = (gpa: number) => {
   if (gpa >= 8.5) return 'text-success';
@@ -98,9 +22,54 @@ const getScoreColor = (score: number) => {
   return 'text-destructive';
 };
 
+const getGPAClassification = (gpa: number) => {
+  if (gpa >= 9.0) return 'Xuất sắc';
+  if (gpa >= 8.0) return 'Giỏi';
+  if (gpa >= 7.0) return 'Khá';
+  if (gpa >= 5.5) return 'Trung bình';
+  return 'Yếu';
+};
+
 export default function GradesPage() {
-  const officialCourses = mockTranscript.courses.filter((c) => c.isOfficial);
-  const pendingCourses = mockTranscript.courses.filter((c) => !c.isOfficial);
+  const [transcript, setTranscript] = useState<TranscriptResponse & { totalCredits: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchGrades();
+  }, []);
+
+  const fetchGrades = async () => {
+    setIsLoading(true);
+    try {
+      const data = await apiClient.getMyGrades();
+      // Calculate total credits
+      const totalCredits = data.courses
+        .filter(c => c.isOfficial)
+        .reduce((sum, c) => sum + c.credits, 0);
+      setTranscript({ ...data, totalCredits });
+    } catch (error) {
+      console.error('Failed to fetch grades:', error);
+      // Set null on error - will show empty state
+      setTranscript(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!transcript) {
+    return null;
+  }
+
+  const officialCourses = transcript.courses.filter((c) => c.isOfficial);
+  const pendingCourses = transcript.courses.filter((c) => !c.isOfficial);
 
   return (
     <div className="container mx-auto px-4 sm:px-6 space-y-8">
@@ -114,7 +83,7 @@ export default function GradesPage() {
           Bảng điểm
         </h1>
         <p className="text-muted-foreground">
-          Học kỳ {mockTranscript.currentSemester} • {mockTranscript.studentName}
+          Học kỳ {transcript.currentSemester} • {transcript.studentName}
         </p>
       </motion.div>
 
@@ -130,10 +99,10 @@ export default function GradesPage() {
               <p
                 className={cn(
                   'text-3xl font-display font-bold',
-                  getGPAColor(mockTranscript.cumulativeGPA)
+                  getGPAColor(transcript.cumulativeGPA)
                 )}
               >
-                {mockTranscript.cumulativeGPA.toFixed(2)}
+                {transcript.cumulativeGPA.toFixed(2)}
               </p>
             </div>
           </div>
@@ -147,7 +116,7 @@ export default function GradesPage() {
             <div>
               <p className="text-sm text-muted-foreground">Tín Chỉ</p>
               <p className="text-3xl font-display font-bold text-success">
-                {mockTranscript.totalCredits}
+                {transcript.totalCredits}
               </p>
             </div>
           </div>
@@ -160,7 +129,7 @@ export default function GradesPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Xếp Loại</p>
-              <p className="text-3xl font-display font-bold text-accent">Khá</p>
+              <p className="text-3xl font-display font-bold text-accent">{getGPAClassification(transcript.cumulativeGPA)}</p>
             </div>
           </div>
         </GlassCard>
@@ -173,7 +142,7 @@ export default function GradesPage() {
             <div>
               <p className="text-sm text-muted-foreground">Số Môn</p>
               <p className="text-3xl font-display font-bold text-warning">
-                {mockTranscript.courses.length}
+                {transcript.courses.length}
               </p>
             </div>
           </div>
@@ -184,7 +153,7 @@ export default function GradesPage() {
       <GlassCard delay={0.3}>
         <h2 className="font-display font-bold text-lg mb-6">Phân bố điểm</h2>
         <div className="flex items-end justify-center gap-4 h-48">
-          {mockTranscript.courses.map((course, index) => {
+          {transcript.courses.map((course, index) => {
             const height = (course.finalScore / 10) * 100;
             return (
               <motion.div
