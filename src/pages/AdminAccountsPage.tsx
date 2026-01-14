@@ -166,7 +166,7 @@ export default function AdminAccountsPage() {
 
       // Update role if changed
       if (formData.roleId !== selectedUser.roleId) {
-        await apiClient.updateUserRole(selectedUser.userId, { roleId: formData.roleId });
+        await apiClient.updateUserRole(selectedUser.userId, { userId: selectedUser.userId, newRoleId: formData.roleId });
       }
 
       await fetchUsers();

@@ -157,8 +157,8 @@ export default function ManagerDashboardPage() {
 
   // Calculate stats by course/major
   const courseStats = courses.map((course) => {
-    const courseClasses = classes.filter((c) => c.courseId === course.id);
-    const totalStudents = courseClasses.reduce((sum, c) => sum + (c.currentStudents || 0), 0);
+    const courseClasses = classes.filter((c) => c.courseName === course.name);
+    const totalStudents = courseClasses.reduce((sum, c) => sum + (c.currentEnrollment || 0), 0);
     return {
       ...course,
       totalStudents,
@@ -384,21 +384,21 @@ export default function ManagerDashboardPage() {
                 </h3>
                 <div className="space-y-3">
                   {classes.slice(0, 5).map((classItem) => {
-                    const course = courses.find((c) => c.id === classItem.courseId);
+                    const course = courses.find((c) => c.name === classItem.courseName);
                     return (
                       <div
                         key={classItem.id}
                         className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
                       >
                         <div>
-                          <p className="font-medium">{classItem.classCode}</p>
+                          <p className="font-medium">{classItem.code}</p>
                           <p className="text-sm text-muted-foreground">
                             {course?.name || 'N/A'}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="font-semibold">
-                            {classItem.currentStudents}/{classItem.maxStudents}
+                            {classItem.currentEnrollment}/{classItem.maxCapacity}
                           </p>
                           <p className="text-sm text-muted-foreground">sinh viên</p>
                         </div>
