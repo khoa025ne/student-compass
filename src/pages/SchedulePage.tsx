@@ -1,100 +1,23 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
-import { StatusBadge } from '@/components/ui/status-badge';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
-import type { MyEnrollment } from '@/types';
+import { useAuthStore } from '@/store/authStore';
+import type { ScheduleItem as APIScheduleItem, DayOfWeekPair, TimeSlot } from '@/types';
 
-interface ScheduleItem {
+interface ScheduleDisplayItem {
   id: number;
   courseCode: string;
   courseName: string;
-  classCode: string;
+  className: string;
   room: string;
-  teacher: string;
   dayOfWeek: string;
   startTime: string;
   endTime: string;
   color: string;
 }
-
-// Mock schedule data
-const mockSchedule = [
-  {
-    id: 1,
-    courseCode: 'CS101',
-    courseName: 'Lập Trình Web',
-    classCode: 'CS101-01',
-    room: 'A101',
-    teacher: 'Nguyễn Văn A',
-    dayOfWeek: 'Monday',
-    startTime: '08:00',
-    endTime: '10:00',
-    color: 'from-cyan-500 to-teal-500',
-  },
-  {
-    id: 2,
-    courseCode: 'CS102',
-    courseName: 'Cơ Sở Dữ Liệu',
-    classCode: 'CS102-02',
-    room: 'B205',
-    teacher: 'Trần Thị B',
-    dayOfWeek: 'Monday',
-    startTime: '10:30',
-    endTime: '12:30',
-    color: 'from-violet-500 to-purple-500',
-  },
-  {
-    id: 3,
-    courseCode: 'MA101',
-    courseName: 'Toán Cao Cấp',
-    classCode: 'MA101-01',
-    room: 'C301',
-    teacher: 'Lê Văn C',
-    dayOfWeek: 'Tuesday',
-    startTime: '08:00',
-    endTime: '10:00',
-    color: 'from-orange-500 to-amber-500',
-  },
-  {
-    id: 4,
-    courseCode: 'EN101',
-    courseName: 'Tiếng Anh 1',
-    classCode: 'EN101-01',
-    room: 'D102',
-    teacher: 'Phạm Thị D',
-    dayOfWeek: 'Wednesday',
-    startTime: '14:00',
-    endTime: '16:00',
-    color: 'from-rose-500 to-pink-500',
-  },
-  {
-    id: 5,
-    courseCode: 'CS101',
-    courseName: 'Lập Trình Web',
-    classCode: 'CS101-01',
-    room: 'A101',
-    teacher: 'Nguyễn Văn A',
-    dayOfWeek: 'Thursday',
-    startTime: '08:00',
-    endTime: '10:00',
-    color: 'from-cyan-500 to-teal-500',
-  },
-  {
-    id: 6,
-    courseCode: 'CS103',
-    courseName: 'Thuật Toán',
-    classCode: 'CS103-01',
-    room: 'A203',
-    teacher: 'Hoàng Văn E',
-    dayOfWeek: 'Friday',
-    startTime: '10:30',
-    endTime: '12:30',
-    color: 'from-emerald-500 to-green-500',
-  },
-];
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const dayLabels: Record<string, string> = {
@@ -136,26 +59,24 @@ const getSchedulePosition = (startTime: string, endTime: string) => {
   return { top: `${top}%`, height: `${height}%` };
 };
 
-// Parse schedule string like "Thứ 2, 08:00-10:00" to structured data
-const parseScheduleString = (schedule: string): { dayOfWeek: string; startTime: string; endTime: string } | null => {
-  const match = schedule.match(/Thứ\s*(\d+),?\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
-  if (!match) return null;
-  
-  const dayNumber = parseInt(match[1]);
-  const dayMap: Record<number, string> = {
-    2: 'Monday',
-    3: 'Tuesday',
-    4: 'Wednesday',
-    5: 'Thursday',
-    6: 'Friday',
-    7: 'Saturday',
+// Convert DayOfWeekPair and TimeSlot to display values
+const getDaysFromPair = (pair: DayOfWeekPair): string[] => {
+  const mapping: Record<number, string[]> = {
+    1: ['Monday', 'Thursday'],  // 2-5
+    2: ['Tuesday', 'Friday'],   // 3-6
+    3: ['Wednesday', 'Saturday'], // 4-7
   };
-  
-  return {
-    dayOfWeek: dayMap[dayNumber] || 'Monday',
-    startTime: match[2],
-    endTime: match[3],
+  return mapping[pair] || [];
+};
+
+const getTimeFromSlot = (slot: TimeSlot): { start: string; end: string } => {
+  const mapping: Record<number, { start: string; end: string }> = {
+    1: { start: '07:30', end: '09:50' },
+    2: { start: '10:00', end: '12:20' },
+    3: { start: '12:50', end: '15:10' },
+    4: { start: '15:20', end: '17:40' },
   };
+  return mapping[slot] || { start: '08:00', end: '10:00' };
 };
 
 // Generate color based on course code
@@ -174,42 +95,54 @@ const getColorForCourse = (courseCode: string): string => {
 };
 
 export default function SchedulePage() {
+  const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const [schedule, setSchedule] = useState<ScheduleDisplayItem[]>([]);
 
   useEffect(() => {
-    fetchSchedule();
-  }, []);
+    if (user?.userId) {
+      fetchSchedule();
+    }
+  }, [user?.userId]);
 
   const fetchSchedule = async () => {
     setIsLoading(true);
     try {
-      const enrollments = await apiClient.getMyEnrollments();
+      // Get studentId from user - for now use userId directly
+      // In production, you might need to map userId to studentId
+      const studentId = user?.userId || 0;
       
-      // Convert enrollments to schedule items
-      const scheduleItems: ScheduleItem[] = enrollments.flatMap((enrollment, index) => {
-        const parsed = parseScheduleString(enrollment.schedule);
-        if (!parsed) return [];
+      if (studentId === 0) {
+        setSchedule([]);
+        return;
+      }
+
+      const scheduleData = await apiClient.getStudentSchedule(studentId);
+      
+      // Convert API schedule items to display items
+      const scheduleItems: ScheduleDisplayItem[] = scheduleData.flatMap((item, index) => {
+        const days = getDaysFromPair(item.dayOfWeekPair);
+        const time = getTimeFromSlot(item.timeSlot);
+        const color = getColorForCourse(item.courseCode);
         
-        return [{
-          id: index + 1,
-          courseCode: enrollment.courseCode,
-          courseName: enrollment.courseName,
-          classCode: enrollment.classCode,
-          room: enrollment.room,
-          teacher: enrollment.teacherName,
-          dayOfWeek: parsed.dayOfWeek,
-          startTime: parsed.startTime,
-          endTime: parsed.endTime,
-          color: getColorForCourse(enrollment.courseCode),
-        }];
+        // Create an entry for each day in the pair
+        return days.map((dayOfWeek, dayIndex) => ({
+          id: index * 2 + dayIndex + 1,
+          courseCode: item.courseCode,
+          courseName: item.courseName,
+          className: item.className,
+          room: item.room,
+          dayOfWeek,
+          startTime: time.start,
+          endTime: time.end,
+          color,
+        }));
       });
       
       setSchedule(scheduleItems);
     } catch (error) {
       console.error('Failed to fetch schedule:', error);
-      // Use mock data as fallback
-      setSchedule(mockSchedule);
+      setSchedule([]);
     } finally {
       setIsLoading(false);
     }
@@ -360,13 +293,13 @@ export default function SchedulePage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-semibold truncate">{item.courseName}</p>
-                      <StatusBadge variant="secondary">{item.classCode}</StatusBadge>
+                      <span className="px-2 py-0.5 rounded-full text-xs bg-muted">{item.className}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {dayLabels[item.dayOfWeek]} • {item.startTime} - {item.endTime}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Phòng {item.room} • {item.teacher}
+                      Phòng {item.room}
                     </p>
                   </div>
                 </div>

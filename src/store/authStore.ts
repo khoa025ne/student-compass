@@ -120,6 +120,11 @@ export const useAuthStore = create<AuthState>()(
         return response;
       },
 
+      changePasswordByEmail: async (data: { email: string; oldPassword: string; newPassword: string; confirmPassword: string }): Promise<ChangePasswordResponse> => {
+        const response = await apiClient.changePasswordByEmail(data);
+        return response;
+      },
+
       refreshTokens: async () => {
         const currentRefreshToken = get().refreshToken;
         if (!currentRefreshToken) {
@@ -162,6 +167,20 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           mustChangePassword: false,
         });
+      },
+
+      updateAvatar: async (file: File): Promise<{ message: string; avatarUrl: string }> => {
+        const response = await apiClient.uploadAvatar(file);
+        
+        // Update user with new avatar
+        const currentUser = get().user;
+        if (currentUser) {
+          const updatedUser = { ...currentUser, avatarUrl: response.avatarUrl };
+          localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+          set({ user: updatedUser });
+        }
+        
+        return { message: response.message, avatarUrl: response.avatarUrl };
       },
     }),
     {

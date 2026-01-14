@@ -14,6 +14,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
 import type { Notification } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -21,56 +22,64 @@ import { cn } from '@/lib/utils';
 // Mock data for development
 const mockNotifications: Notification[] = [
   {
-    id: 1,
+    notificationId: 1,
     title: 'Đăng ký môn học thành công',
     message: 'Bạn đã đăng ký thành công môn Lập Trình Web (CS101-01)',
     type: 'success',
     isRead: false,
     createdAt: new Date().toISOString(),
-    userId: 1,
+    studentId: 1,
   },
   {
-    id: 2,
+    notificationId: 2,
     title: 'Nhắc nhở nộp bài',
     message: 'Bạn có bài tập môn Cơ Sở Dữ Liệu cần nộp trước 23:59 hôm nay',
     type: 'warning',
     isRead: false,
     createdAt: new Date(Date.now() - 3600000).toISOString(),
-    userId: 1,
+    studentId: 1,
   },
   {
-    id: 3,
+    notificationId: 3,
     title: 'Thông báo từ phòng đào tạo',
     message: 'Lịch thi học kỳ 2024.1 đã được công bố. Vui lòng kiểm tra lịch thi của bạn.',
     type: 'info',
     isRead: true,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
-    userId: 1,
+    studentId: 1,
   },
   {
-    id: 4,
+    notificationId: 4,
     title: 'Cảnh báo học vụ',
     message: 'Điểm trung bình của bạn đang dưới mức yêu cầu. Vui lòng liên hệ cố vấn học tập.',
     type: 'error',
     isRead: true,
     createdAt: new Date(Date.now() - 172800000).toISOString(),
-    userId: 1,
+    studentId: 1,
   },
 ];
 
 export default function NotificationsPage() {
+  const { user } = useAuthStore();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   useEffect(() => {
-    fetchNotifications();
-  }, []);
+    if (user?.userId) {
+      fetchNotifications();
+    }
+  }, [user?.userId]);
 
   const fetchNotifications = async () => {
     setIsLoading(true);
     try {
-      const data = await apiClient.getNotifications();
+      const studentId = user?.userId || 0;
+      if (studentId === 0) {
+        setNotifications(mockNotifications);
+        return;
+      }
+      const data = await apiClient.getNotificationsForStudent(studentId);
       setNotifications(data);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
@@ -127,20 +136,40 @@ export default function NotificationsPage() {
     }
   };
 
-  const markAsRead = (id: number) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, isRead: true } : n))
-    );
-    toast.success('Đã đánh dấu là đã đọc');
+  const markAsRead = async (id: number) => {
+    try {
+      await apiClient.markNotificationRead(id);
+      setNotifications(prev =>
+        prev.map(n => (n.notificationId === id ? { ...n, isRead: true } : n))
+      );
+      toast.success('Đã đánh dấu là đã đọc');
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+      // Still update local state even if API fails
+      setNotifications(prev =>
+        prev.map(n => (n.notificationId === id ? { ...n, isRead: true } : n))
+      );
+      toast.success('Đã đánh dấu là đã đọc');
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    toast.success('Đã đánh dấu tất cả là đã đọc');
+  const markAllAsRead = async () => {
+    const unreadNotifications = notifications.filter(n => !n.isRead);
+    try {
+      // Mark all unread notifications as read
+      await Promise.all(unreadNotifications.map(n => apiClient.markNotificationRead(n.notificationId)));
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      toast.success('Đã đánh dấu tất cả là đã đọc');
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+      // Still update local state
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      toast.success('Đã đánh dấu tất cả là đã đọc');
+    }
   };
 
   const deleteNotification = (id: number) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setNotifications(prev => prev.filter(n => n.notificationId !== id));
     toast.success('Đã xóa thông báo');
   };
 
@@ -223,7 +252,7 @@ export default function NotificationsPage() {
         <div className="space-y-4">
           {filteredNotifications.map((notification, index) => (
             <motion.div
-              key={notification.id}
+              key={notification.notificationId}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
@@ -264,7 +293,7 @@ export default function NotificationsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={() => markAsRead(notification.notificationId)}
                         >
                           <Check className="w-4 h-4 mr-1" />
                           Đã đọc
@@ -274,7 +303,7 @@ export default function NotificationsPage() {
                         variant="ghost"
                         size="sm"
                         className="text-destructive hover:text-destructive"
-                        onClick={() => deleteNotification(notification.id)}
+                        onClick={() => deleteNotification(notification.notificationId)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

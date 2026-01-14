@@ -18,7 +18,6 @@ import {
   Filter,
   Clock,
   MapPin,
-  User,
   BookOpen,
   CheckCircle2,
   XCircle,
@@ -28,131 +27,77 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
-import type { AvailableClass } from '@/types';
+import { useAuthStore } from '@/store/authStore';
+import type { AvailableClass, Semester, DayOfWeekPair, TimeSlot } from '@/types';
 
-// Extended type with department for filtering
-interface AvailableClassWithDepartment extends AvailableClass {
-  department?: string;
-}
+const getDayPairLabel = (dayPair: DayOfWeekPair) => {
+  const labels: Record<number, string> = {
+    1: 'Thứ 2 - Thứ 5',
+    2: 'Thứ 3 - Thứ 6',
+    3: 'Thứ 4 - Thứ 7',
+  };
+  return labels[dayPair] || '';
+};
 
-// Mock available classes (fallback when API fails)
-const mockAvailableClasses: AvailableClassWithDepartment[] = [
-  {
-    courseClassId: 1,
-    classCode: 'CS201-01',
-    courseName: 'Kỹ Thuật Phần Mềm',
-    credits: 3,
-    availableSlots: 5,
-    maxCapacity: 40,
-    schedule: 'Thứ 2 08:00-10:00',
-    room: 'A301',
-    teacherName: 'Nguyễn Văn A',
-    prerequisiteMet: true,
-    prerequisiteCode: null,
-    department: 'CNTT',
-  },
-  {
-    courseClassId: 2,
-    classCode: 'CS201-02',
-    courseName: 'Kỹ Thuật Phần Mềm',
-    credits: 3,
-    availableSlots: 12,
-    maxCapacity: 40,
-    schedule: 'Thứ 4 14:00-16:00',
-    room: 'A302',
-    teacherName: 'Trần Thị B',
-    prerequisiteMet: true,
-    prerequisiteCode: null,
-    department: 'CNTT',
-  },
-  {
-    courseClassId: 3,
-    classCode: 'CS301-01',
-    courseName: 'Trí Tuệ Nhân Tạo',
-    credits: 3,
-    availableSlots: 0,
-    maxCapacity: 35,
-    schedule: 'Thứ 3 10:30-12:30',
-    room: 'B201',
-    teacherName: 'Lê Văn C',
-    prerequisiteMet: true,
-    prerequisiteCode: 'CS201',
-    department: 'CNTT',
-  },
-  {
-    courseClassId: 4,
-    classCode: 'CS302-01',
-    courseName: 'Machine Learning',
-    credits: 3,
-    availableSlots: 8,
-    maxCapacity: 30,
-    schedule: 'Thứ 5 08:00-10:00',
-    room: 'B202',
-    teacherName: 'Phạm Văn D',
-    prerequisiteMet: false,
-    prerequisiteCode: 'CS301',
-    department: 'CNTT',
-  },
-  {
-    courseClassId: 5,
-    classCode: 'BA201-01',
-    courseName: 'Marketing Căn Bản',
-    credits: 3,
-    availableSlots: 25,
-    maxCapacity: 50,
-    schedule: 'Thứ 6 14:00-16:00',
-    room: 'C101',
-    teacherName: 'Hoàng Thị E',
-    prerequisiteMet: true,
-    prerequisiteCode: null,
-    department: 'QTKD',
-  },
-  {
-    courseClassId: 6,
-    classCode: 'EN201-01',
-    courseName: 'Tiếng Anh Chuyên Ngành',
-    credits: 2,
-    availableSlots: 15,
-    maxCapacity: 40,
-    schedule: 'Thứ 2 14:00-16:00',
-    room: 'D201',
-    teacherName: 'Smith John',
-    prerequisiteMet: true,
-    prerequisiteCode: 'EN101',
-    department: 'Ngoại ngữ',
-  },
-];
-
-const departments = ['Tất cả', 'CNTT', 'QTKD', 'Ngoại ngữ'];
+const getSlotLabel = (slot: TimeSlot) => {
+  const labels: Record<number, string> = {
+    1: '7:30 - 9:50',
+    2: '10:00 - 12:20',
+    3: '12:50 - 15:10',
+    4: '15:20 - 17:40',
+  };
+  return labels[slot] || '';
+};
 
 export default function CoursesPage() {
-  const [availableClasses, setAvailableClasses] = useState<AvailableClassWithDepartment[]>([]);
+  const { user } = useAuthStore();
+  const [availableClasses, setAvailableClasses] = useState<AvailableClass[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('Tất cả');
   const [enrollingId, setEnrollingId] = useState<number | null>(null);
   const [enrolledIds, setEnrolledIds] = useState<number[]>([]);
 
   useEffect(() => {
-    fetchAvailableClasses();
+    fetchInitialData();
   }, []);
 
-  const fetchAvailableClasses = async () => {
+  useEffect(() => {
+    if (selectedSemester) {
+      fetchAvailableClasses(selectedSemester);
+    }
+  }, [selectedSemester]);
+
+  const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const data = await apiClient.getAvailableClasses();
-      // Add mock department for filtering (in production, this would come from API)
-      const classesWithDept = data.map(cls => ({
-        ...cls,
-        department: cls.classCode.startsWith('CS') ? 'CNTT' : 
-                   cls.classCode.startsWith('BA') ? 'QTKD' : 
-                   cls.classCode.startsWith('EN') ? 'Ngoại ngữ' : 'Khác'
-      }));
-      setAvailableClasses(classesWithDept);
+      const semestersData = await apiClient.getSemesters();
+      setSemesters(semestersData);
+      
+      // Auto-select active semester
+      const activeSemester = semestersData.find(s => s.isActive);
+      if (activeSemester) {
+        setSelectedSemester(activeSemester.semesterId);
+      } else if (semestersData.length > 0) {
+        setSelectedSemester(semestersData[0].semesterId);
+      }
+    } catch (error) {
+      console.error('Failed to fetch semesters:', error);
+      toast.error('Không thể tải danh sách học kỳ');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchAvailableClasses = async (semesterId: number) => {
+    setIsLoading(true);
+    try {
+      const data = await apiClient.getAvailableClasses(semesterId);
+      setAvailableClasses(data);
     } catch (error) {
       console.error('Failed to fetch available classes:', error);
-      // Use mock data if API fails
-      setAvailableClasses(mockAvailableClasses);
+      setAvailableClasses([]);
     } finally {
       setIsLoading(false);
     }
@@ -161,34 +106,37 @@ export default function CoursesPage() {
   const filteredClasses = availableClasses.filter((cls) => {
     const matchesSearch =
       cls.courseName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cls.classCode.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDepartment =
-      selectedDepartment === 'Tất cả' || cls.department === selectedDepartment;
-    return matchesSearch && matchesDepartment;
+      cls.className.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (cls.courseCode && cls.courseCode.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesSearch;
   });
 
-  const handleEnroll = async (courseClassId: number) => {
-    const classInfo = availableClasses.find((c) => c.courseClassId === courseClassId);
+  const handleEnroll = async (classId: number) => {
+    const classInfo = availableClasses.find((c) => c.classId === classId);
     
     if (!classInfo) return;
 
-    if (classInfo.availableSlots === 0) {
-      toast.error('Lớp học phần đã đầy. Vui lòng chọn lớp khác.');
+    if (!classInfo.canRegister) {
+      toast.error(classInfo.statusText || 'Không thể đăng ký lớp này');
       return;
     }
 
-    if (!classInfo.prerequisiteMet) {
-      toast.error(`Bạn chưa đạt điều kiện tiên quyết ${classInfo.prerequisiteCode}`);
+    // Get studentId from user (need to map userId to studentId)
+    // For now, we'll use a placeholder - in production, you'd get this from user profile
+    const studentId = user?.userId || 0;
+    
+    if (!studentId) {
+      toast.error('Không tìm thấy thông tin sinh viên');
       return;
     }
 
-    setEnrollingId(courseClassId);
+    setEnrollingId(classId);
 
     try {
-      const response = await apiClient.enroll({ courseClassId });
+      const response = await apiClient.registerCourse({ studentId, classId });
       
-      if (response.success) {
-        setEnrolledIds((prev) => [...prev, courseClassId]);
+      if (response.message.includes('thành công')) {
+        setEnrolledIds((prev) => [...prev, classId]);
         toast.success(
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
@@ -198,12 +146,16 @@ export default function CoursesPage() {
             </div>
           </div>
         );
+        // Refresh list
+        if (selectedSemester) {
+          fetchAvailableClasses(selectedSemester);
+        }
       } else {
         toast.error(response.message || 'Đăng ký thất bại');
       }
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      toast.error(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+      const err = error as { response?: { data?: { Message?: string } } };
+      toast.error(err.response?.data?.Message || 'Đăng ký thất bại. Vui lòng thử lại.');
     } finally {
       setEnrollingId(null);
     }
@@ -229,7 +181,7 @@ export default function CoursesPage() {
           Đăng ký môn học
         </h1>
         <p className="text-muted-foreground">
-          Học kỳ 2024.1 • Tìm và đăng ký các lớp học phần
+          Tìm và đăng ký các lớp học phần
         </p>
       </motion.div>
 
@@ -247,14 +199,17 @@ export default function CoursesPage() {
           </div>
           <div className="flex items-center gap-2">
             <Filter className="w-5 h-5 text-muted-foreground" />
-            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-              <SelectTrigger className="w-[180px] h-12 rounded-xl">
-                <SelectValue placeholder="Khoa" />
+            <Select 
+              value={selectedSemester?.toString()} 
+              onValueChange={(v) => setSelectedSemester(parseInt(v))}
+            >
+              <SelectTrigger className="w-[200px] h-12 rounded-xl">
+                <SelectValue placeholder="Chọn học kỳ" />
               </SelectTrigger>
               <SelectContent>
-                {departments.map((dept) => (
-                  <SelectItem key={dept} value={dept}>
-                    {dept}
+                {semesters.map((semester) => (
+                  <SelectItem key={semester.semesterId} value={semester.semesterId.toString()}>
+                    {semester.semesterName} {semester.isActive && '(Hiện tại)'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -271,11 +226,11 @@ export default function CoursesPage() {
         </StatusBadge>
         <StatusBadge variant="success">
           <CheckCircle2 className="w-4 h-4 mr-1" />
-          {filteredClasses.filter((c) => c.prerequisiteMet).length} đủ điều kiện
+          {filteredClasses.filter((c) => c.canRegister).length} còn chỗ
         </StatusBadge>
         <StatusBadge variant="destructive">
           <XCircle className="w-4 h-4 mr-1" />
-          {filteredClasses.filter((c) => c.availableSlots === 0).length} đã đầy
+          {filteredClasses.filter((c) => !c.canRegister).length} đã đầy
         </StatusBadge>
       </div>
 
@@ -287,14 +242,15 @@ export default function CoursesPage() {
       >
         <AnimatePresence>
           {filteredClasses.map((cls, index) => {
-            const isEnrolled = enrolledIds.includes(cls.courseClassId);
-            const isEnrolling = enrollingId === cls.courseClassId;
-            const isFull = cls.availableSlots === 0;
-            const canEnroll = cls.prerequisiteMet && !isFull && !isEnrolled;
+            const isEnrolled = enrolledIds.includes(cls.classId);
+            const isEnrolling = enrollingId === cls.classId;
+            const isFull = !cls.canRegister;
+            const canEnroll = cls.canRegister && !isEnrolled;
+            const availableSlots = cls.maxCapacity - cls.currentEnrollment;
 
             return (
               <motion.div
-                key={cls.courseClassId}
+                key={cls.classId}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
@@ -304,7 +260,7 @@ export default function CoursesPage() {
                   className={cn(
                     'h-full flex flex-col',
                     isEnrolled && 'ring-2 ring-success',
-                    !cls.prerequisiteMet && 'opacity-75'
+                    isFull && 'opacity-75'
                   )}
                   hover={canEnroll}
                   delay={0}
@@ -316,8 +272,10 @@ export default function CoursesPage() {
                         <h3 className="font-display font-bold text-lg">{cls.courseName}</h3>
                       </div>
                       <div className="flex items-center gap-2">
-                        <StatusBadge variant="secondary">{cls.classCode}</StatusBadge>
-                        <StatusBadge variant="outline">{cls.credits} TC</StatusBadge>
+                        <StatusBadge variant="secondary">{cls.className}</StatusBadge>
+                        {cls.courseCode && (
+                          <StatusBadge variant="outline">{cls.courseCode}</StatusBadge>
+                        )}
                       </div>
                     </div>
                     {isEnrolled && (
@@ -335,35 +293,31 @@ export default function CoursesPage() {
                   <div className="space-y-2 text-sm text-muted-foreground flex-1">
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4" />
-                      <span>{cls.schedule}</span>
+                      <span>{getDayPairLabel(cls.dayOfWeekPair)} • {getSlotLabel(cls.timeSlot)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4" />
                       <span>Phòng {cls.room}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      <span>{cls.teacherName}</span>
                     </div>
                   </div>
 
                   {/* Capacity */}
                   <div className="mt-4">
                     <ProgressBar
-                      value={cls.maxCapacity - cls.availableSlots}
+                      value={cls.currentEnrollment}
                       max={cls.maxCapacity}
                       size="sm"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Còn {cls.availableSlots} chỗ trống
+                      {availableSlots > 0 ? `Còn ${availableSlots} chỗ trống` : 'Đã đầy'}
                     </p>
                   </div>
 
-                  {/* Prerequisite Warning */}
-                  {!cls.prerequisiteMet && (
+                  {/* Status Warning */}
+                  {!cls.canRegister && cls.statusText && (
                     <div className="mt-4 flex items-center gap-2 text-sm text-warning bg-warning/10 rounded-lg p-3">
                       <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>Yêu cầu hoàn thành {cls.prerequisiteCode}</span>
+                      <span>{cls.statusText}</span>
                     </div>
                   )}
 
@@ -376,7 +330,7 @@ export default function CoursesPage() {
                       </Button>
                     ) : (
                       <Button
-                        onClick={() => handleEnroll(cls.courseClassId)}
+                        onClick={() => handleEnroll(cls.classId)}
                         disabled={!canEnroll || isEnrolling}
                         className={cn(
                           'w-full transition-all duration-300',
@@ -393,10 +347,8 @@ export default function CoursesPage() {
                         ) : isFull ? (
                           <>
                             <XCircle className="w-4 h-4 mr-2" />
-                            Đã đầy
+                            {cls.statusText || 'Đã đầy'}
                           </>
-                        ) : !cls.prerequisiteMet ? (
-                          'Chưa đủ điều kiện'
                         ) : (
                           'Đăng ký ngay'
                         )}

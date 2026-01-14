@@ -21,6 +21,8 @@ import NotificationsPage from "@/pages/NotificationsPage";
 import NotFound from "@/pages/NotFound";
 import AdminAccountsPage from "@/pages/AdminAccountsPage";
 import ManagerDashboardPage from "@/pages/ManagerDashboardPage";
+import SemesterManagementPage from "@/pages/SemesterManagementPage";
+import ClassManagementPage from "@/pages/ClassManagementPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -85,6 +87,26 @@ function AppRoutes() {
           <ProtectedRoute allowedRoles={['Manager']}>
             <AppLayout>
               <ManagerDashboardPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/semesters"
+        element={
+          <ProtectedRoute allowedRoles={['Manager']}>
+            <AppLayout>
+              <SemesterManagementPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/classes"
+        element={
+          <ProtectedRoute allowedRoles={['Manager']}>
+            <AppLayout>
+              <ClassManagementPage />
             </AppLayout>
           </ProtectedRoute>
         }

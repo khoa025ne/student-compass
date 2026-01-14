@@ -1,0 +1,440 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+.animated-login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Poppins', sans-serif;
+}
+
+.animated-login-page * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.animated-login-page .wrapper {
+    position: relative;
+    width: 850px;
+    height: 500px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.animated-login-page .wrapper .form-box {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.animated-login-page .wrapper .form-box.login {
+    left: 0;
+    padding: 0 50px 0 40px;
+}
+
+.animated-login-page .form-box h2 {
+    margin-bottom: 15px;
+    position: relative;
+    font-size: 28px;
+    color: #333;
+    text-align: center;
+}
+
+.animated-login-page .form-box h2::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 3px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 2px;
+}
+
+.animated-login-page .form-box .input-box {
+    position: relative;
+    width: 100%;
+    height: 45px;
+    margin: 20px 0;
+}
+
+.animated-login-page .input-box input {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    color: #333;
+    font-size: 15px;
+    font-weight: 500;
+    border: none;
+    outline: none;
+    border-bottom: 2px solid #ddd;
+    transition: 0.5s;
+    padding-right: 30px;
+}
+
+.animated-login-page .input-box input:focus,
+.animated-login-page .input-box input:valid {
+    border-bottom-color: #667eea;
+}
+
+.animated-login-page .input-box input.valid-password {
+    border-bottom-color: #22c55e;
+}
+
+.animated-login-page .input-box input.invalid-password {
+    border-bottom-color: #ef4444;
+}
+
+.animated-login-page .input-box label {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: #888;
+    pointer-events: none;
+    transition: 0.5s;
+}
+
+.animated-login-page .input-box input:focus~label,
+.animated-login-page .input-box input:valid~label {
+    top: -5px;
+    font-size: 12px;
+    color: #667eea;
+}
+
+.animated-login-page .input-box i {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: #888;
+    transition: 0.5s;
+}
+
+.animated-login-page .input-box input:focus~i,
+.animated-login-page .input-box input:valid~i {
+    color: #667eea;
+}
+
+.animated-login-page form button.btn {
+    width: 100%;
+    height: 42px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    outline: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    transition: 0.3s;
+    margin-top: 10px;
+}
+
+.animated-login-page form button.btn:hover:not(:disabled) {
+    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.5);
+    transform: translateY(-2px);
+}
+
+.animated-login-page form button.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.animated-login-page form .linkTxt {
+    font-size: 13px;
+    color: #666;
+    text-align: center;
+    margin: 15px 0 5px;
+}
+
+.animated-login-page .linkTxt p a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+    transition: 0.3s;
+}
+
+.animated-login-page .linkTxt p a:hover {
+    color: #764ba2;
+}
+
+/* Google Login Styles */
+.animated-login-page .google-login {
+    margin-top: 15px;
+}
+
+.animated-login-page .divider {
+    display: flex;
+    align-items: center;
+    margin: 10px 0;
+}
+
+.animated-login-page .divider::before,
+.animated-login-page .divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #ddd;
+}
+
+.animated-login-page .divider span {
+    padding: 0 15px;
+    color: #888;
+    font-size: 13px;
+}
+
+.animated-login-page .google-btn-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.animated-login-page .google-loading {
+    text-align: center;
+    padding: 10px;
+    color: #888;
+    font-size: 13px;
+}
+
+/* Password Rules */
+.animated-login-page .password-rules {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: -10px 0 15px;
+    font-size: 11px;
+}
+
+.animated-login-page .password-rules .rule {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: #f3f4f6;
+}
+
+.animated-login-page .password-rules .rule.passed {
+    background: #dcfce7;
+    color: #22c55e;
+}
+
+.animated-login-page .password-rules .rule.failed {
+    background: #fef2f2;
+    color: #ef4444;
+}
+
+.animated-login-page .error-text {
+    color: #ef4444;
+    font-size: 12px;
+    margin: -10px 0 10px;
+    text-align: center;
+}
+
+/* Animations */
+.animated-login-page .wrapper .form-box.login .animation {
+    transform: translateX(0);
+    transition: 0.7s ease;
+    opacity: 1;
+    filter: blur(0);
+    transition-delay: calc(.1s * var(--j));
+}
+
+.animated-login-page .wrapper.active .form-box.login .animation {
+    transform: translateX(-120%);
+    opacity: 0;
+    filter: blur(10px);
+    transition-delay: calc(.1s * var(--i));
+}
+
+/* Info Text */
+.animated-login-page .wrapper .info-text {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.animated-login-page .wrapper .info-text.login {
+    right: 0;
+    text-align: right;
+    padding: 0 40px 40px 100px;
+}
+
+.animated-login-page .wrapper .info-text h2 {
+    font-size: 32px;
+    color: #fff;
+    line-height: 1.3;
+    text-transform: uppercase;
+}
+
+.animated-login-page .wrapper .info-text p {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-top: 10px;
+}
+
+.animated-login-page .wrapper .info-text.login .animation {
+    transform: translateX(0);
+    opacity: 1;
+    filter: blur(0);
+    transition: 0.7s ease;
+    transition-delay: calc(.1s * var(--j));
+}
+
+.animated-login-page .wrapper.active .info-text.login .animation {
+    transform: translateX(120px);
+    opacity: 0;
+    filter: blur(10px);
+    transition: 0.7s ease;
+    transition-delay: calc(.1s * var(--i));
+}
+
+/* Rotating Background */
+.animated-login-page .wrapper .rotate-bg {
+    position: absolute;
+    top: -4px;
+    right: 0;
+    width: 950px;
+    height: 650px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transform: rotate(10deg) skewY(40deg);
+    transform-origin: bottom right;
+    transition: 1.5s ease;
+    transition-delay: 1.6s;
+}
+
+.animated-login-page .wrapper.active .rotate-bg {
+    transform: rotate(0) skewY(0);
+    transition-delay: 0.5s;
+}
+
+/* Register/Change Password Form */
+.animated-login-page .wrapper .form-box.register {
+    padding: 0 40px 0 50px;
+    right: 0;
+    pointer-events: none;
+}
+
+.animated-login-page .wrapper.active .form-box.register {
+    pointer-events: auto;
+}
+
+.animated-login-page .wrapper .form-box.register .animation {
+    transform: translateX(120%);
+    opacity: 0;
+    filter: blur(10px);
+    transition: .7s ease;
+    transition-delay: calc(.1s * var(--j));
+}
+
+.animated-login-page .wrapper.active .form-box.register .animation {
+    transform: translateX(0);
+    opacity: 1;
+    filter: blur(0);
+    transition-delay: calc(.1s * var(--i));
+}
+
+.animated-login-page .wrapper .info-text.register {
+    left: 0;
+    text-align: left;
+    padding: 0 100px 40px 40px;
+    pointer-events: none;
+}
+
+.animated-login-page .wrapper.active .info-text.register {
+    pointer-events: auto;
+}
+
+.animated-login-page .wrapper .info-text.register .animation {
+    transform: translateX(-120%);
+    opacity: 0;
+    filter: blur(10px);
+    transition: .7s ease;
+    transition-delay: calc(.1s * var(--j));
+}
+
+.animated-login-page .wrapper.active .info-text.register .animation {
+    transform: translateX(0);
+    opacity: 1;
+    filter: blur(0);
+    transition-delay: calc(.1s * var(--i));
+}
+
+.animated-login-page .wrapper .rotate-bg2 {
+    position: absolute;
+    top: 100%;
+    left: 300px;
+    width: 950px;
+    height: 750px;
+    background: #fff;
+    transform: rotate(0) skewY(0);
+    transform-origin: bottom left;
+    transition: 1.5s ease;
+    transition-delay: 0.5s;
+}
+
+.animated-login-page .wrapper.active .rotate-bg2 {
+    transform: rotate(-11deg) skewY(-40deg);
+    transition-delay: 1.2s;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .animated-login-page .wrapper {
+        width: 95%;
+        max-width: 400px;
+        height: auto;
+        padding: 40px 30px;
+    }
+    
+    .animated-login-page .wrapper .form-box {
+        position: relative;
+        width: 100%;
+        padding: 0 !important;
+    }
+    
+    .animated-login-page .wrapper .form-box.register {
+        display: none;
+    }
+    
+    .animated-login-page .wrapper.active .form-box.login {
+        display: none;
+    }
+    
+    .animated-login-page .wrapper.active .form-box.register {
+        display: flex;
+        pointer-events: auto;
+    }
+    
+    .animated-login-page .wrapper .info-text {
+        display: none;
+    }
+    
+    .animated-login-page .wrapper .rotate-bg,
+    .animated-login-page .wrapper .rotate-bg2 {
+        display: none;
+    }
+    
+    .animated-login-page .wrapper .form-box .animation,
+    .animated-login-page .wrapper.active .form-box .animation {
+        transform: none !important;
+        opacity: 1 !important;
+        filter: none !important;
+    }
+}

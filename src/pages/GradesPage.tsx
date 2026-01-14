@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
-import { GradeBadge, StatusBadge } from '@/components/ui/status-badge';
+import { GradeBadge } from '@/components/ui/status-badge';
 import { LoadingSpinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Award, BookOpen, Target } from 'lucide-react';
 import { apiClient } from '@/lib/api';
-import type { TranscriptResponse } from '@/types';
+import { useAuthStore } from '@/store/authStore';
+import type { TranscriptResponse, TranscriptSemester, TranscriptCourse } from '@/types';
 
 const getGPAColor = (gpa: number) => {
   if (gpa >= 8.5) return 'text-success';
@@ -30,26 +31,46 @@ const getGPAClassification = (gpa: number) => {
   return 'Yếu';
 };
 
+interface ExtendedTranscript extends TranscriptResponse {
+  totalCredits: number;
+  allCourses: TranscriptCourse[];
+}
+
 export default function GradesPage() {
-  const [transcript, setTranscript] = useState<TranscriptResponse & { totalCredits: number } | null>(null);
+  const { user } = useAuthStore();
+  const [transcript, setTranscript] = useState<ExtendedTranscript | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchGrades();
-  }, []);
+    if (user?.userId) {
+      fetchGrades();
+    }
+  }, [user?.userId]);
 
   const fetchGrades = async () => {
     setIsLoading(true);
     try {
-      const data = await apiClient.getMyGrades();
+      // Get studentId from user
+      const studentId = user?.userId || 0;
+      
+      if (studentId === 0) {
+        setTranscript(null);
+        return;
+      }
+
+      const data = await apiClient.getStudentTranscript(studentId);
+      
+      // Flatten all courses from all semesters
+      const allCourses = data.details.flatMap((semester: TranscriptSemester) => semester.courses);
+      
       // Calculate total credits
-      const totalCredits = data.courses
-        .filter(c => c.isOfficial)
-        .reduce((sum, c) => sum + c.credits, 0);
-      setTranscript({ ...data, totalCredits });
+      const totalCredits = allCourses
+        .filter((c: TranscriptCourse) => c.status === 'Passed')
+        .reduce((sum: number, c: TranscriptCourse) => sum + c.credits, 0);
+      
+      setTranscript({ ...data, totalCredits, allCourses });
     } catch (error) {
       console.error('Failed to fetch grades:', error);
-      // Set null on error - will show empty state
       setTranscript(null);
     } finally {
       setIsLoading(false);
@@ -65,11 +86,19 @@ export default function GradesPage() {
   }
 
   if (!transcript) {
-    return null;
+    return (
+      <div className="container mx-auto px-4 sm:px-6 py-8">
+        <div className="text-center text-muted-foreground">
+          Không có dữ liệu bảng điểm
+        </div>
+      </div>
+    );
   }
 
-  const officialCourses = transcript.courses.filter((c) => c.isOfficial);
-  const pendingCourses = transcript.courses.filter((c) => !c.isOfficial);
+  const allCourses = transcript.allCourses;
+  const passedCourses = allCourses.filter((c) => c.status === 'Passed');
+  const failedCourses = allCourses.filter((c) => c.status === 'Failed');
+  const inProgressCourses = allCourses.filter((c) => c.status === 'InProgress');
 
   return (
     <div className="container mx-auto px-4 sm:px-6 space-y-8">
@@ -83,7 +112,7 @@ export default function GradesPage() {
           Bảng điểm
         </h1>
         <p className="text-muted-foreground">
-          Học kỳ {transcript.currentSemester} • {transcript.studentName}
+          {transcript.studentName} • MSSV: {transcript.studentCode}
         </p>
       </motion.div>
 
@@ -142,7 +171,7 @@ export default function GradesPage() {
             <div>
               <p className="text-sm text-muted-foreground">Số Môn</p>
               <p className="text-3xl font-display font-bold text-warning">
-                {transcript.courses.length}
+                {allCourses.length}
               </p>
             </div>
           </div>
@@ -152,12 +181,12 @@ export default function GradesPage() {
       {/* GPA Visualization */}
       <GlassCard delay={0.3}>
         <h2 className="font-display font-bold text-lg mb-6">Phân bố điểm</h2>
-        <div className="flex items-end justify-center gap-4 h-48">
-          {transcript.courses.map((course, index) => {
+        <div className="flex items-end justify-center gap-4 h-48 overflow-x-auto pb-4">
+          {allCourses.slice(0, 10).map((course, index) => {
             const height = (course.finalScore / 10) * 100;
             return (
               <motion.div
-                key={course.courseCode}
+                key={`${course.courseCode}-${index}`}
                 initial={{ height: 0 }}
                 animate={{ height: `${height}%` }}
                 transition={{ delay: 0.4 + index * 0.1, duration: 0.8, ease: 'easeOut' }}
@@ -192,122 +221,145 @@ export default function GradesPage() {
         </div>
       </GlassCard>
 
-      {/* Official Grades Table */}
-      <div className="space-y-4">
-        <h2 className="font-display font-bold text-xl">Điểm chính thức</h2>
-        <GlassCard className="overflow-hidden p-0" delay={0.4}>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left p-4 font-semibold">Môn học</th>
-                  <th className="text-center p-4 font-semibold hidden sm:table-cell">TC</th>
-                  <th className="text-center p-4 font-semibold hidden md:table-cell">CC</th>
-                  <th className="text-center p-4 font-semibold hidden md:table-cell">BT</th>
-                  <th className="text-center p-4 font-semibold hidden lg:table-cell">GK</th>
-                  <th className="text-center p-4 font-semibold hidden lg:table-cell">CK</th>
-                  <th className="text-center p-4 font-semibold">Điểm TB</th>
-                  <th className="text-center p-4 font-semibold">Xếp loại</th>
-                </tr>
-              </thead>
-              <tbody>
-                {officialCourses.map((course, index) => (
-                  <motion.tr
-                    key={course.courseCode}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5 + index * 0.1 }}
-                    className="border-b border-border/50 hover:bg-muted/20 transition-colors"
-                  >
-                    <td className="p-4">
-                      <div>
-                        <p className="font-medium">{course.courseName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {course.classCode}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="text-center p-4 hidden sm:table-cell">
-                      {course.credits}
-                    </td>
-                    <td className="text-center p-4 hidden md:table-cell">
-                      <span className={getScoreColor(course.participation)}>
-                        {course.participation.toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="text-center p-4 hidden md:table-cell">
-                      <span className={getScoreColor(course.assignment)}>
-                        {course.assignment.toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="text-center p-4 hidden lg:table-cell">
-                      <span className={getScoreColor(course.midterm)}>
-                        {course.midterm.toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="text-center p-4 hidden lg:table-cell">
-                      <span className={getScoreColor(course.final)}>
-                        {course.final.toFixed(1)}
-                      </span>
-                    </td>
-                    <td className="text-center p-4">
-                      <span
-                        className={cn(
-                          'font-bold text-lg',
-                          getScoreColor(course.finalScore)
-                        )}
-                      >
-                        {course.finalScore.toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="text-center p-4">
-                      <GradeBadge grade={course.letterGrade} />
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </GlassCard>
-      </div>
+      {/* Grades by Semester */}
+      {transcript.details.map((semester, semesterIndex) => (
+        <div key={semester.semesterId} className="space-y-4">
+          <h2 className="font-display font-bold text-xl">
+            {semester.semesterName}
+            {semester.semesterGPA > 0 && (
+              <span className={cn('ml-4 text-base', getGPAColor(semester.semesterGPA))}>
+                GPA: {semester.semesterGPA.toFixed(2)}
+              </span>
+            )}
+          </h2>
+          <GlassCard className="overflow-hidden p-0" delay={0.4 + semesterIndex * 0.1}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left p-4 font-semibold">Môn học</th>
+                    <th className="text-center p-4 font-semibold hidden sm:table-cell">TC</th>
+                    <th className="text-center p-4 font-semibold hidden md:table-cell">CC</th>
+                    <th className="text-center p-4 font-semibold hidden md:table-cell">BT</th>
+                    <th className="text-center p-4 font-semibold hidden lg:table-cell">GK</th>
+                    <th className="text-center p-4 font-semibold hidden lg:table-cell">CK</th>
+                    <th className="text-center p-4 font-semibold">Điểm TB</th>
+                    <th className="text-center p-4 font-semibold">Xếp loại</th>
+                    <th className="text-center p-4 font-semibold">Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {semester.courses.map((course, index) => (
+                    <motion.tr
+                      key={`${course.courseCode}-${index}`}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.5 + index * 0.05 }}
+                      className="border-b border-border/50 hover:bg-muted/20 transition-colors"
+                    >
+                      <td className="p-4">
+                        <div>
+                          <p className="font-medium">{course.courseName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {course.courseCode}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="text-center p-4 hidden sm:table-cell">
+                        {course.credits}
+                      </td>
+                      <td className="text-center p-4 hidden md:table-cell">
+                        <span className={getScoreColor(course.participation)}>
+                          {course.participation.toFixed(1)}
+                        </span>
+                      </td>
+                      <td className="text-center p-4 hidden md:table-cell">
+                        <span className={getScoreColor(course.assignment)}>
+                          {course.assignment.toFixed(1)}
+                        </span>
+                      </td>
+                      <td className="text-center p-4 hidden lg:table-cell">
+                        <span className={getScoreColor(course.midterm)}>
+                          {course.midterm.toFixed(1)}
+                        </span>
+                      </td>
+                      <td className="text-center p-4 hidden lg:table-cell">
+                        <span className={getScoreColor(course.final)}>
+                          {course.final.toFixed(1)}
+                        </span>
+                      </td>
+                      <td className="text-center p-4">
+                        <span
+                          className={cn(
+                            'font-bold text-lg',
+                            getScoreColor(course.finalScore)
+                          )}
+                        >
+                          {course.finalScore.toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="text-center p-4">
+                        <GradeBadge grade={course.letterGrade} />
+                      </td>
+                      <td className="text-center p-4">
+                        <span className={cn(
+                          'px-2 py-1 rounded-full text-xs font-medium',
+                          course.status === 'Passed' && 'bg-success/20 text-success',
+                          course.status === 'Failed' && 'bg-destructive/20 text-destructive',
+                          course.status === 'InProgress' && 'bg-warning/20 text-warning'
+                        )}>
+                          {course.status === 'Passed' ? 'Đạt' : course.status === 'Failed' ? 'Không đạt' : 'Đang học'}
+                        </span>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        </div>
+      ))}
 
-      {/* Pending Grades */}
-      {pendingCourses.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <h2 className="font-display font-bold text-xl">Điểm chưa chính thức</h2>
-            <StatusBadge variant="warning">Đang chờ duyệt</StatusBadge>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            {pendingCourses.map((course, index) => (
-              <motion.div
-                key={course.courseCode}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 + index * 0.1 }}
-              >
-                <GlassCard className="border-warning/30 bg-warning/5">
-                  <div className="flex items-center justify-between">
+      {/* Summary */}
+      {(failedCourses.length > 0 || inProgressCourses.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-6">
+          {failedCourses.length > 0 && (
+            <GlassCard className="border-destructive/30 bg-destructive/5" delay={0.6}>
+              <h3 className="font-display font-bold text-lg mb-4 text-destructive">
+                Môn chưa đạt ({failedCourses.length})
+              </h3>
+              <div className="space-y-2">
+                {failedCourses.map((course, index) => (
+                  <div key={`failed-${course.courseCode}-${index}`} className="flex justify-between items-center py-2 border-b border-destructive/20 last:border-0">
                     <div>
-                      <p className="font-semibold">{course.courseName}</p>
-                      <p className="text-sm text-muted-foreground">{course.classCode}</p>
+                      <p className="font-medium">{course.courseName}</p>
+                      <p className="text-xs text-muted-foreground">{course.courseCode}</p>
                     </div>
-                    <div className="text-right">
-                      <p
-                        className={cn(
-                          'text-2xl font-display font-bold',
-                          getScoreColor(course.finalScore)
-                        )}
-                      >
-                        {course.finalScore.toFixed(2)}
-                      </p>
-                      <GradeBadge grade={course.letterGrade} />
-                    </div>
+                    <span className="text-destructive font-bold">{course.finalScore.toFixed(2)}</span>
                   </div>
-                </GlassCard>
-              </motion.div>
-            ))}
-          </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
+          {inProgressCourses.length > 0 && (
+            <GlassCard className="border-warning/30 bg-warning/5" delay={0.65}>
+              <h3 className="font-display font-bold text-lg mb-4 text-warning">
+                Đang học ({inProgressCourses.length})
+              </h3>
+              <div className="space-y-2">
+                {inProgressCourses.map((course, index) => (
+                  <div key={`progress-${course.courseCode}-${index}`} className="flex justify-between items-center py-2 border-b border-warning/20 last:border-0">
+                    <div>
+                      <p className="font-medium">{course.courseName}</p>
+                      <p className="text-xs text-muted-foreground">{course.courseCode}</p>
+                    </div>
+                    <span className="text-warning font-bold">{course.credits} TC</span>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
         </div>
       )}
     </div>

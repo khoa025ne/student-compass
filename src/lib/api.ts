@@ -16,23 +16,19 @@ import type {
   CreateStudentRequest,
   UpdateStudentRequest,
   Course,
-  CreateCourseRequest,
-  UpdateCourseRequest,
   CourseClass,
   CreateClassRequest,
-  UpdateClassRequest,
   Semester,
+  CreateSemesterRequest,
   AvailableClass,
-  EnrollmentRequest,
+  RegisterCourseRequest,
+  ChangeClassRequest,
   EnrollmentResponse,
   MyEnrollment,
-  TransferRequest,
-  CreateTransferRequest,
+  ScheduleItem,
   TranscriptResponse,
-  CreateGradeRequest,
   UpdateGradeRequest,
   Notification,
-  CreateNotificationRequest,
   AIAdviceResponse,
 } from '@/types';
 
@@ -131,6 +127,11 @@ class ApiClient {
     return response.data;
   }
 
+  async changePasswordByEmail(data: { email: string; oldPassword: string; newPassword: string; confirmPassword: string }): Promise<ChangePasswordResponse> {
+    const response = await this.client.post<ChangePasswordResponse>('/auth/change-password-by-email', data);
+    return response.data;
+  }
+
   async refreshToken(refreshToken: string): Promise<LoginResponse> {
     const response = await this.client.post<LoginResponse>('/auth/refresh-token', refreshToken);
     return response.data;
@@ -143,6 +144,21 @@ class ApiClient {
 
   async getMe(): Promise<AuthMeResponse> {
     const response = await this.client.get<AuthMeResponse>('/auth/me');
+    return response.data;
+  }
+
+  async uploadAvatar(file: File): Promise<{ message: string; avatarUrl: string; user: User }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.client.post<{ message: string; avatarUrl: string; user: User }>(
+      '/auth/upload-avatar',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
     return response.data;
   }
 
@@ -195,8 +211,13 @@ class ApiClient {
     return response.data;
   }
 
-  async createStudent(data: CreateStudentRequest): Promise<Student> {
-    const response = await this.client.post<Student>('/students', data);
+  async getStudentByCode(studentCode: string): Promise<Student> {
+    const response = await this.client.get<Student>(`/students/by-code/${studentCode}`);
+    return response.data;
+  }
+
+  async createStudent(data: CreateStudentRequest): Promise<{ message: string; studentCode: string; defaultPassword: string }> {
+    const response = await this.client.post<{ message: string; studentCode: string; defaultPassword: string }>('/students', data);
     return response.data;
   }
 
@@ -207,6 +228,34 @@ class ApiClient {
 
   async deleteStudent(id: number): Promise<void> {
     await this.client.delete(`/students/${id}`);
+  }
+
+  async uploadAvatar(studentId: number, file: File): Promise<{ url: string; message: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.client.post<{ url: string; message: string }>(
+      `/students/upload-avatar/${studentId}`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
+  }
+
+  async getStudentSchedule(studentId: number, semesterId?: number): Promise<ScheduleItem[]> {
+    const response = await this.client.get<ScheduleItem[]>(`/students/${studentId}/schedule`, {
+      params: semesterId ? { semesterId } : undefined,
+    });
+    return response.data;
+  }
+
+  async getStudentTranscript(studentId: number): Promise<TranscriptResponse> {
+    const response = await this.client.get<TranscriptResponse>(`/students/${studentId}/transcript`);
+    return response.data;
+  }
+
+  async getStudentAIAnalysis(studentId: number): Promise<AIAdviceResponse> {
+    const response = await this.client.get<AIAdviceResponse>(`/students/${studentId}/ai-analysis`);
+    return response.data;
   }
 
   // ============ COURSES APIs ============
@@ -221,24 +270,10 @@ class ApiClient {
     return response.data;
   }
 
-  async createCourse(data: CreateCourseRequest): Promise<Course> {
-    const response = await this.client.post<Course>('/courses', data);
-    return response.data;
-  }
-
-  async updateCourse(id: number, data: UpdateCourseRequest): Promise<Course> {
-    const response = await this.client.put<Course>(`/courses/${id}`, data);
-    return response.data;
-  }
-
-  async deleteCourse(id: number): Promise<void> {
-    await this.client.delete(`/courses/${id}`);
-  }
-
   // ============ CLASSES APIs ============
 
-  async getClasses(): Promise<CourseClass[]> {
-    const response = await this.client.get<CourseClass[]>('/classes');
+  async getClassesBySemester(semesterId: number): Promise<CourseClass[]> {
+    const response = await this.client.get<CourseClass[]>(`/classes/semester/${semesterId}`);
     return response.data;
   }
 
@@ -247,49 +282,83 @@ class ApiClient {
     return response.data;
   }
 
-  async createClass(data: CreateClassRequest): Promise<CourseClass> {
-    const response = await this.client.post<CourseClass>('/classes', data);
+  async createClass(data: CreateClassRequest): Promise<{ message: string; classId: number }> {
+    const response = await this.client.post<{ message: string; classId: number }>('/classes', data);
     return response.data;
-  }
-
-  async updateClass(id: number, data: UpdateClassRequest): Promise<CourseClass> {
-    const response = await this.client.put<CourseClass>(`/classes/${id}`, data);
-    return response.data;
-  }
-
-  async deleteClass(id: number): Promise<void> {
-    await this.client.delete(`/classes/${id}`);
   }
 
   // ============ ENROLLMENTS APIs ============
 
-  async enroll(data: EnrollmentRequest): Promise<EnrollmentResponse> {
-    const response = await this.client.post<EnrollmentResponse>('/enrollments', data);
+  async registerCourse(data: RegisterCourseRequest): Promise<EnrollmentResponse> {
+    const response = await this.client.post<EnrollmentResponse>('/enrollments/register', data);
     return response.data;
   }
 
-  async getEnrollments(): Promise<MyEnrollment[]> {
-    const response = await this.client.get<MyEnrollment[]>('/enrollments');
+  async changeClass(data: ChangeClassRequest): Promise<EnrollmentResponse> {
+    const response = await this.client.post<EnrollmentResponse>('/enrollments/change-class', data);
     return response.data;
   }
 
-  async cancelEnrollment(id: number): Promise<void> {
-    await this.client.delete(`/enrollments/${id}`);
+  async getMyEnrollments(studentId?: number, semesterId?: number): Promise<MyEnrollment[]> {
+    // If no studentId provided, get from current user
+    const sid = studentId || this.getCurrentStudentId();
+    if (!sid) {
+      console.warn('No student ID available for getMyEnrollments');
+      return [];
+    }
+    const schedule = await this.getStudentSchedule(sid, semesterId);
+    // Transform schedule items to MyEnrollment format
+    return schedule.map(s => ({
+      enrollmentId: s.enrollmentId,
+      studentId: sid,
+      classId: s.classId,
+      className: s.className,
+      courseCode: s.courseCode,
+      courseName: s.courseName,
+      credits: s.credits || 0,
+      room: s.room,
+      schedule: s.schedule,
+      dayOfWeekPair: s.dayOfWeekPair,
+      timeSlot: s.timeSlot,
+      enrollmentDate: '',
+      status: 'Active',
+      semesterName: s.semester,
+      teacherName: s.teacherName,
+    }));
+  }
+
+  // Helper to get current student ID from stored user
+  private getCurrentStudentId(): number | null {
+    const userStr = localStorage.getItem('auth_user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        return user.userId || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   // ============ GRADES APIs ============
 
-  async createGrade(data: CreateGradeRequest): Promise<void> {
-    await this.client.post('/grades', data);
+  async getMyGrades(studentId?: number): Promise<TranscriptResponse> {
+    const sid = studentId || this.getCurrentStudentId();
+    if (!sid) {
+      console.warn('No student ID available for getMyGrades');
+      return { studentCode: '', studentName: '', cumulativeGPA: 0, totalCredits: 0, courses: [] };
+    }
+    return this.getStudentTranscript(sid);
   }
 
-  async getGradesByStudentId(studentId: number): Promise<TranscriptResponse> {
-    const response = await this.client.get<TranscriptResponse>(`/grades/student/${studentId}`);
+  async updateGrade(data: UpdateGradeRequest): Promise<{ message: string }> {
+    const response = await this.client.put<{ message: string }>('/grades/update', data);
     return response.data;
   }
 
-  async updateGrade(id: number, data: UpdateGradeRequest): Promise<void> {
-    await this.client.put(`/grades/${id}`, data);
+  async getGradesByStudentId(studentId: number): Promise<TranscriptResponse> {
+    return this.getStudentTranscript(studentId);
   }
 
   // ============ SEMESTERS APIs ============
@@ -299,59 +368,58 @@ class ApiClient {
     return response.data;
   }
 
-  async getCurrentSemester(): Promise<Semester> {
-    const response = await this.client.get<Semester>('/semesters/current');
+  async createSemester(data: CreateSemesterRequest): Promise<{ message: string; semesterId: number }> {
+    const response = await this.client.post<{ message: string; semesterId: number }>('/semesters', data);
     return response.data;
+  }
+
+  async setActiveSemester(semesterId: number): Promise<{ message: string }> {
+    const response = await this.client.put<{ message: string }>(`/semesters/${semesterId}/set-active`);
+    return response.data;
+  }
+
+  async getCurrentSemester(): Promise<Semester | null> {
+    const semesters = await this.getSemesters();
+    return semesters.find(s => s.isActive) || null;
   }
 
   // ============ NOTIFICATIONS APIs ============
 
-  async sendNotification(data: CreateNotificationRequest): Promise<void> {
-    await this.client.post('/notifications', data);
-  }
-
-  async getNotifications(): Promise<Notification[]> {
-    const response = await this.client.get<Notification[]>('/notifications');
+  async getNotificationsForStudent(studentId: number): Promise<Notification[]> {
+    const response = await this.client.get<Notification[]>(`/notifications/student/${studentId}`);
     return response.data;
   }
 
-  // ============ TRANSFER REQUESTS APIs ============
-
-  async getTransferRequests(): Promise<TransferRequest[]> {
-    const response = await this.client.get<TransferRequest[]>('/transferrequest');
-    return response.data;
-  }
-
-  async createTransferRequest(data: CreateTransferRequest): Promise<TransferRequest> {
-    const response = await this.client.post<TransferRequest>('/transferrequest', data);
-    return response.data;
+  async markNotificationRead(notificationId: number): Promise<void> {
+    await this.client.post(`/notifications/${notificationId}/read`);
   }
 
   // ============ AI ADVISOR APIs ============
 
-  async getAIAdvice(): Promise<AIAdviceResponse> {
-    const response = await this.client.get<AIAdviceResponse>('/aiadvisor/get-advice');
-    return response.data;
+  async getAIAdvice(studentId: number): Promise<AIAdviceResponse> {
+    return this.getStudentAIAnalysis(studentId);
   }
 
-  // ============ LEGACY/COMPATIBILITY APIs ============
-  // These may need adjustment based on actual backend implementation
+  // ============ AVAILABLE CLASSES APIs ============
 
-  async getAvailableClasses(semesterId?: number): Promise<AvailableClass[]> {
-    const response = await this.client.get<AvailableClass[]>('/enrollment/available-classes', {
-      params: semesterId ? { semesterId } : undefined,
-    });
-    return response.data;
-  }
-
-  async getMyEnrollments(): Promise<MyEnrollment[]> {
-    const response = await this.client.get<MyEnrollment[]>('/enrollment/my-enrollments');
-    return response.data;
-  }
-
-  async getMyGrades(): Promise<TranscriptResponse> {
-    const response = await this.client.get<TranscriptResponse>('/grade/my-grades');
-    return response.data;
+  async getAvailableClasses(semesterId: number): Promise<AvailableClass[]> {
+    const classes = await this.getClassesBySemester(semesterId);
+    return classes.map(cls => ({
+      classId: cls.classId,
+      classCode: cls.classCode,
+      className: cls.className,
+      courseCode: cls.courseCode || '',
+      courseName: cls.courseName || '',
+      credits: 0,
+      room: cls.room,
+      schedule: cls.schedule,
+      dayOfWeekPair: cls.dayOfWeekPair,
+      timeSlot: cls.timeSlot,
+      currentEnrollment: cls.currentEnrollment,
+      maxCapacity: cls.maxCapacity,
+      canRegister: cls.currentEnrollment < cls.maxCapacity,
+      statusText: cls.currentEnrollment >= cls.maxCapacity ? 'Hết chỗ' : 'Còn chỗ',
+    }));
   }
 }
 

@@ -5,41 +5,31 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, Brain, TrendingUp, BookOpen, Target, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
-import type { AIAdviceResponse } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 
 // Mock AI advice data (fallback when API fails)
-const mockAdvice: AIAdviceResponse = {
-  studentId: 1,
-  studentName: 'Nguyễn Văn A',
-  cumulativeGPA: 7.85,
-  advice: `Dựa trên kết quả học tập của bạn, tôi có một số gợi ý để cải thiện:
+const mockAnalysis = `Dựa trên kết quả học tập của bạn, tôi có một số gợi ý để cải thiện:
 
 **📊 Phân tích tổng quan:**
-- GPA hiện tại của bạn là 7.85 - thuộc loại Khá, rất gần với mức Giỏi (8.0)
-- Bạn có thế mạnh ở các môn Tiếng Anh và Cơ Sở Dữ Liệu
-- Môn Toán Cao Cấp cần được cải thiện
+- GPA hiện tại của bạn thuộc loại Khá
+- Bạn có thế mạnh ở các môn chuyên ngành
+- Một số môn đại cương cần được cải thiện
 
 **💡 Đề xuất cho học kỳ tới:**
 
-1. **Ưu tiên cải thiện Toán:** Với điểm C+ ở Toán Cao Cấp, bạn nên:
+1. **Ưu tiên cải thiện các môn yếu:** 
    - Tham gia các buổi ôn tập nhóm
    - Làm thêm bài tập từ sách tham khảo
    - Có thể tìm gia sư nếu cần
 
-2. **Tận dụng thế mạnh Tiếng Anh:** Với điểm A+ ở Tiếng Anh, bạn nên:
-   - Đăng ký môn Tiếng Anh Chuyên Ngành sớm
-   - Cân nhắc tham gia CLB Tiếng Anh để duy trì
+2. **Tận dụng thế mạnh:** 
+   - Đăng ký các môn chuyên ngành sớm
+   - Cân nhắc tham gia CLB học thuật
 
 3. **Số tín chỉ đề xuất:** Không nên đăng ký quá 18 tín chỉ để đảm bảo chất lượng học tập
 
-4. **Lộ trình môn học:**
-   - Nên học CS201 (Kỹ Thuật Phần Mềm) - là tiền đề cho nhiều môn chuyên ngành
-   - Có thể học thêm 1 môn đại cương để cân bằng
-
 **🎯 Mục tiêu khả thi:**
-Nâng GPA lên 8.0+ trong học kỳ tới nếu cải thiện được môn Toán và duy trì các môn còn lại.`,
-  generatedAt: '2024-01-11T10:00:00Z',
-};
+Nâng GPA lên mức tốt hơn trong học kỳ tới nếu cải thiện được các môn yếu và duy trì các môn còn lại.`;
 
 const thinkingPhrases = [
   'Đang phân tích bảng điểm...',
@@ -48,20 +38,28 @@ const thinkingPhrases = [
   'Đang hoàn thiện gợi ý...',
 ];
 
+interface AIAnalysisResult {
+  analysis: string;
+  generatedAt: string;
+}
+
 export default function AIAdvisorPage() {
+  const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [currentPhrase, setCurrentPhrase] = useState(0);
-  const [advice, setAdvice] = useState<AIAdviceResponse | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const phraseIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    fetchAdvice();
+    if (user?.userId) {
+      fetchAdvice();
+    }
     return () => {
       if (phraseIntervalRef.current) {
         clearInterval(phraseIntervalRef.current);
       }
     };
-  }, []);
+  }, [user?.userId]);
 
   const fetchAdvice = async () => {
     setIsLoading(true);
@@ -73,12 +71,18 @@ export default function AIAdvisorPage() {
     }, 1500);
 
     try {
-      const data = await apiClient.getAIAdvice();
-      setAdvice(data);
+      const studentId = user?.userId || 0;
+      if (studentId === 0) {
+        setAnalysisResult({ analysis: mockAnalysis, generatedAt: new Date().toISOString() });
+        return;
+      }
+      
+      const data = await apiClient.getStudentAIAnalysis(studentId);
+      setAnalysisResult({ analysis: data.analysis, generatedAt: new Date().toISOString() });
     } catch (error) {
       console.error('Failed to fetch AI advice:', error);
       // Use mock data if API fails
-      setAdvice(mockAdvice);
+      setAnalysisResult({ analysis: mockAnalysis, generatedAt: new Date().toISOString() });
     } finally {
       setIsLoading(false);
       if (phraseIntervalRef.current) {
@@ -88,7 +92,7 @@ export default function AIAdvisorPage() {
   };
 
   const handleRefresh = () => {
-    setAdvice(null);
+    setAnalysisResult(null);
     fetchAdvice();
   };
 
@@ -207,53 +211,12 @@ export default function AIAdvisorPage() {
       )}
 
       {/* Advice Content */}
-      {!isLoading && advice && (
+      {!isLoading && analysisResult && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          {/* Stats Summary */}
-          <div className="grid grid-cols-3 gap-4">
-            <GlassCard delay={0.1}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">GPA</p>
-                  <p className="text-xl font-display font-bold gradient-text">
-                    {advice.cumulativeGPA.toFixed(2)}
-                  </p>
-                </div>
-              </div>
-            </GlassCard>
-
-            <GlassCard delay={0.15}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Xếp Loại</p>
-                  <p className="text-xl font-display font-bold text-success">Khá</p>
-                </div>
-              </div>
-            </GlassCard>
-
-            <GlassCard delay={0.2}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
-                  <Target className="w-5 h-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Mục tiêu</p>
-                  <p className="text-xl font-display font-bold text-accent">8.0+</p>
-                </div>
-              </div>
-            </GlassCard>
-          </div>
-
           {/* Advice Card */}
           <GlassCard className="relative overflow-hidden" delay={0.3}>
             {/* Background decoration */}
@@ -268,7 +231,7 @@ export default function AIAdvisorPage() {
                   <div>
                     <h2 className="font-display font-bold text-lg">Lời khuyên cho bạn</h2>
                     <p className="text-xs text-muted-foreground">
-                      Cập nhật: {new Date(advice.generatedAt).toLocaleDateString('vi-VN')}
+                      Cập nhật: {new Date(analysisResult.generatedAt).toLocaleDateString('vi-VN')}
                     </p>
                   </div>
                 </div>
@@ -285,7 +248,7 @@ export default function AIAdvisorPage() {
 
               {/* Markdown-like content */}
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                {advice.advice.split('\n\n').map((paragraph, index) => (
+                {analysisResult.analysis.split('\n\n').map((paragraph, index) => (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, y: 10 }}

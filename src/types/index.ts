@@ -1,3 +1,17 @@
+// ============ ENUMS ============
+export enum DayOfWeekPair {
+  MonThu = 1, // 2-5
+  TueFri = 2, // 3-6
+  WedSat = 3  // 4-7
+}
+
+export enum TimeSlot {
+  Slot1 = 1,
+  Slot2 = 2,
+  Slot3 = 3,
+  Slot4 = 4
+}
+
 // ============ USER & AUTH TYPES ============
 export interface User {
   userId: number;
@@ -11,6 +25,7 @@ export interface User {
   lastLogin?: string | null;
   mustChangePassword?: boolean;
   hasGoogleAccount?: boolean;
+  avatarUrl?: string;
 }
 
 export interface LoginRequest {
@@ -74,40 +89,45 @@ export interface AuthState {
   register: (data: RegisterRequest) => Promise<RegisterResponse>;
   logout: () => Promise<void>;
   changePassword: (data: ChangePasswordRequest) => Promise<ChangePasswordResponse>;
+  changePasswordByEmail: (data: { email: string; oldPassword: string; newPassword: string; confirmPassword: string }) => Promise<ChangePasswordResponse>;
   refreshTokens: () => Promise<void>;
   setAuth: (user: User, token: string, refreshToken: string) => void;
   clearAuth: () => void;
+  updateAvatar: (file: File) => Promise<{ message: string; avatarUrl: string }>;
 }
 
 // ============ STUDENT TYPES ============
 export interface Student {
-  id: number;
-  firstName: string;
-  lastName: string;
+  studentId: number;
+  studentCode: string;
   fullName: string;
   email: string;
-  phone: string;
+  phoneNumber?: string;
   dateOfBirth: string;
-  address: string;
-  gender: 'Male' | 'Female' | 'Other';
-  classId: number;
-  enrollmentDate: string;
-  status: 'Active' | 'Inactive' | 'Graduated' | 'Suspended';
+  classCode?: string;
+  overallGPA: number;
+  createdAt?: string;
+  major?: string;
+  avatarUrl?: string;
+  currentTermNo?: number;
+  isFirstLogin?: boolean;
+  userId?: number;
 }
 
 export interface CreateStudentRequest {
-  firstName: string;
-  lastName: string;
   email: string;
-  phone: string;
+  fullName: string;
+  phoneNumber: string;
   dateOfBirth: string;
-  address: string;
-  gender: 'Male' | 'Female' | 'Other';
-  classId: number;
+  major: string;
+  classCode: string;
 }
 
-export interface UpdateStudentRequest extends Partial<CreateStudentRequest> {
-  status?: 'Active' | 'Inactive' | 'Graduated' | 'Suspended';
+export interface UpdateStudentRequest {
+  fullName?: string;
+  phoneNumber?: string;
+  classCode?: string;
+  major?: string;
 }
 
 // ============ ACADEMIC STRUCTURE TYPES ============
@@ -118,120 +138,167 @@ export interface Department {
 }
 
 export interface Semester {
-  id: number;
-  code: string;
-  year: number;
-  term: number;
+  semesterId: number;
+  semesterName: string;
+  semesterCode: string;
   startDate: string;
   endDate: string;
   isActive: boolean;
 }
 
+export interface CreateSemesterRequest {
+  semesterName: string;
+  semesterCode: string;
+  startDate: string;
+  endDate: string;
+}
+
 export interface Course {
-  id: number;
-  code: string;
-  name: string;
-  description: string;
+  courseId: number;
+  courseName: string;
+  courseCode: string;
   credits: number;
-  departmentId: number;
-  departmentName: string;
-  prerequisiteId: number | null;
-  prerequisiteCode: string | null;
+  prerequisiteCourseId?: number | null;
 }
 
 export interface CreateCourseRequest {
-  code: string;
-  name: string;
-  description: string;
+  courseName: string;
+  courseCode: string;
   credits: number;
-  departmentId: number;
-  prerequisiteId?: number | null;
+  prerequisiteCourseId?: number | null;
 }
 
 export interface UpdateCourseRequest extends Partial<CreateCourseRequest> {}
 
 export interface CourseClass {
-  id: number;
-  code: string;
-  courseName: string;
+  classId: number;
+  className: string;
+  classCode?: string;
+  courseId: number;
+  courseName?: string;
+  courseCode?: string;
+  semesterId: number;
+  semesterName?: string;
   maxCapacity: number;
   currentEnrollment: number;
   room: string;
-  dayOfWeek: string;
-  startTime: string;
-  endTime: string;
-  teacherName: string;
-  semesterCode: string;
-  enrollmentPercentage: number;
+  schedule?: string;
+  dayOfWeekPair: DayOfWeekPair;
+  timeSlot: TimeSlot;
+  teacherId?: number;
+  teacherName?: string;
 }
 
 export interface CreateClassRequest {
-  code: string;
+  className: string;
   courseId: number;
   semesterId: number;
-  maxCapacity: number;
   room: string;
-  dayOfWeek: string;
-  startTime: string;
-  endTime: string;
-  teacherId: number;
+  schedule?: string;
+  maxCapacity: number;
+  dayOfWeekPair: DayOfWeekPair;
+  timeSlot: TimeSlot;
 }
 
 export interface UpdateClassRequest extends Partial<CreateClassRequest> {}
 
 // ============ ENROLLMENT TYPES ============
 export interface AvailableClass {
-  courseClassId: number;
-  classCode: string;
+  classId: number;
+  classCode?: string;
+  className: string;
+  courseCode: string;
   courseName: string;
   credits: number;
-  availableSlots: number;
-  maxCapacity: number;
-  schedule: string;
   room: string;
-  teacherName: string;
-  prerequisiteMet: boolean;
-  prerequisiteCode: string | null;
+  schedule?: string;
+  dayOfWeekPair: DayOfWeekPair;
+  timeSlot: TimeSlot;
+  currentEnrollment: number;
+  maxCapacity: number;
+  canRegister: boolean;
+  statusText: string;
+}
+
+export interface RegisterCourseRequest {
+  studentId: number;
+  classId: number;
+}
+
+export interface ChangeClassRequest {
+  studentId: number;
+  oldClassId: number;
+  newClassId: number;
 }
 
 export interface EnrollmentRequest {
-  courseClassId: number;
+  studentId: number;
+  classId: number;
 }
 
 export interface EnrollmentResponse {
   success: boolean;
-  enrollmentId?: number;
-  message?: string;
-  courseClass?: {
-    code: string;
-    courseName: string;
-    schedule: string;
-    credits: number;
-  };
-  error?: string;
-  errorCode?: string;
-  conflictingClass?: {
-    code: string;
-    courseName: string;
-    schedule: string;
-  };
-  currentEnrollment?: number;
-  maxCapacity?: number;
-  requiredCourse?: string;
-  statusCode?: number;
+  message: string;
 }
 
 export interface MyEnrollment {
   enrollmentId: number;
+  studentId: number;
+  classId: number;
+  className: string;
   courseCode: string;
   courseName: string;
   credits: number;
-  classCode: string;
-  schedule: string;
   room: string;
-  teacherName: string;
-  status: 'Active' | 'Completed' | 'Dropped';
-  currentGrade: string | null;
+  schedule?: string;
+  dayOfWeekPair: DayOfWeekPair;
+  timeSlot: TimeSlot;
+  enrollmentDate: string;
+  status: string;
+  midtermScore?: number | null;
+  finalScore?: number | null;
+  totalScore?: number | null;
+  grade?: string | null;
+  isPassed?: boolean;
+  attemptNumber?: number;
+  semesterName?: string;
+}
+
+// ============ SCHEDULE TYPES ============
+export interface ScheduleItem {
+  enrollmentId: number;
+  classId: number;
+  className: string;
+  room: string;
+  schedule?: string;
+  dayOfWeekPair: DayOfWeekPair;
+  timeSlot: TimeSlot;
+  courseCode: string;
+  courseName: string;
+  semester: string;
+}
+
+// ============ TRANSCRIPT TYPES ============
+export interface TranscriptCourse {
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  score?: number | null;
+  grade?: string | null;
+  status: string;
+}
+
+export interface TranscriptSemester {
+  semester: string;
+  courses: TranscriptCourse[];
+  semesterGPA: number;
+}
+
+export interface TranscriptResponse {
+  studentCode: string;
+  fullName: string;
+  overallGPA: number;
+  details: TranscriptSemester[];
 }
 
 // ============ TRANSFER REQUEST TYPES ============
@@ -245,70 +312,37 @@ export interface TransferRequest {
 }
 
 export interface CreateTransferRequest {
-  fromCourseClassId: number;
-  toCourseClassId: number;
+  studentId: number;
+  oldClassId: number;
+  newClassId: number;
 }
 
 // ============ GRADE TYPES ============
-export interface CourseGrade {
-  courseCode: string;
-  courseName: string;
-  credits: number;
-  classCode: string;
-  participation: number;
-  quiz: number;
-  assignment: number;
-  midterm: number;
-  final: number;
-  finalScore: number;
-  letterGrade: string;
-  isOfficial: boolean;
+export interface UpdateGradeRequest {
+  enrollmentId: number;
+  midtermScore?: number;
+  finalScore?: number;
 }
-
-export interface TranscriptResponse {
-  studentName: string;
-  cumulativeGPA: number;
-  currentSemester: string;
-  courses: CourseGrade[];
-}
-
-export interface CreateGradeRequest {
-  studentId: number;
-  courseClassId: number;
-  participation?: number;
-  quiz?: number;
-  assignment?: number;
-  midterm?: number;
-  final?: number;
-}
-
-export interface UpdateGradeRequest extends Partial<CreateGradeRequest> {}
 
 // ============ NOTIFICATION TYPES ============
 export interface Notification {
-  id: number;
+  notificationId: number;
+  studentId: number;
   title: string;
   message: string;
-  type: 'info' | 'warning' | 'error' | 'success';
   isRead: boolean;
   createdAt: string;
-  userId: number;
 }
 
 export interface CreateNotificationRequest {
+  studentId: number;
   title: string;
   message: string;
-  type: 'info' | 'warning' | 'error' | 'success';
-  userId?: number;
 }
 
 // ============ AI ADVISOR TYPES ============
 export interface AIAdviceResponse {
-  studentId: number;
-  studentName: string;
-  cumulativeGPA: number;
-  advice: string;
-  generatedAt: string;
+  analysis: string;
 }
 
 // ============ API RESPONSE TYPES ============

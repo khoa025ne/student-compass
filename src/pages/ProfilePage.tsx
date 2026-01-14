@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { LoadingSpinner } from '@/components/ui/loading';
+import { useToast } from '@/hooks/use-toast';
 import { 
   User, 
   Mail, 
@@ -14,20 +15,76 @@ import {
   Clock, 
   KeyRound,
   CheckCircle2,
-  LogOut
+  LogOut,
+  Camera,
+  Upload
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 export default function ProfilePage() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateAvatar } = useAuthStore();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
     await logout();
     navigate('/login');
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: 'Lỗi',
+        description: 'Chỉ chấp nhận file ảnh (.jpg, .png, .gif, .webp)',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'Lỗi',
+        description: 'Kích thước file không được vượt quá 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const response = await updateAvatar(file);
+      toast({
+        title: 'Thành công',
+        description: response.message,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Không thể cập nhật avatar',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const getRoleBadgeVariant = (roleName: string) => {
@@ -76,9 +133,41 @@ export default function ProfilePage() {
           className="lg:col-span-1"
         >
           <GlassCard className="text-center">
-            <div className="w-24 h-24 mx-auto rounded-full gradient-bg flex items-center justify-center mb-4">
-              <User className="w-12 h-12 text-primary-foreground" />
+            {/* Avatar with upload functionality */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleAvatarChange}
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              className="hidden"
+            />
+            <div 
+              className="relative w-24 h-24 mx-auto mb-4 group cursor-pointer"
+              onClick={handleAvatarClick}
+            >
+              {user.avatarUrl ? (
+                <img 
+                  src={user.avatarUrl.startsWith('http') ? user.avatarUrl : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://localhost:7280'}${user.avatarUrl}`}
+                  alt={user.fullName}
+                  className="w-24 h-24 rounded-full object-cover border-4 border-primary/20"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full gradient-bg flex items-center justify-center">
+                  <User className="w-12 h-12 text-primary-foreground" />
+                </div>
+              )}
+              {/* Upload overlay */}
+              <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {isUploadingAvatar ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <Camera className="w-6 h-6 text-white" />
+                )}
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground mb-2">
+              Nhấp vào ảnh để thay đổi avatar
+            </p>
             <h2 className="text-xl font-display font-bold">{user.fullName}</h2>
             <p className="text-muted-foreground text-sm mb-4">{user.email}</p>
             <StatusBadge variant={getRoleBadgeVariant(user.roleName) as 'default' | 'destructive' | 'secondary'}>
