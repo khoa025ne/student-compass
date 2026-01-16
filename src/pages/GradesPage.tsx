@@ -51,7 +51,7 @@ export default function GradesPage() {
     setIsLoading(true);
     try {
       // Get studentId from user
-      const studentId = user?.userId || 0;
+      const studentId = user?.studentId || user?.userId || 0;
       
       if (studentId === 0) {
         setTranscript(null);
@@ -112,7 +112,7 @@ export default function GradesPage() {
           Bảng điểm
         </h1>
         <p className="text-muted-foreground">
-          {transcript.studentName} • MSSV: {transcript.studentCode}
+          {transcript.fullName} • MSSV: {transcript.studentCode}
         </p>
       </motion.div>
 
@@ -128,10 +128,10 @@ export default function GradesPage() {
               <p
                 className={cn(
                   'text-3xl font-display font-bold',
-                  getGPAColor(transcript.cumulativeGPA)
+                  getGPAColor(transcript.overallGPA)
                 )}
               >
-                {transcript.cumulativeGPA.toFixed(2)}
+                {transcript.overallGPA.toFixed(2)}
               </p>
             </div>
           </div>
@@ -158,7 +158,7 @@ export default function GradesPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Xếp Loại</p>
-              <p className="text-3xl font-display font-bold text-accent">{getGPAClassification(transcript.cumulativeGPA)}</p>
+              <p className="text-3xl font-display font-bold text-accent">{getGPAClassification(transcript.overallGPA)}</p>
             </div>
           </div>
         </GlassCard>
@@ -183,7 +183,8 @@ export default function GradesPage() {
         <h2 className="font-display font-bold text-lg mb-6">Phân bố điểm</h2>
         <div className="flex items-end justify-center gap-4 h-48 overflow-x-auto pb-4">
           {allCourses.slice(0, 10).map((course, index) => {
-            const height = (course.finalScore / 10) * 100;
+            const scoreValue = course.score ?? 0;
+            const height = (scoreValue / 10) * 100;
             return (
               <motion.div
                 key={`${course.courseCode}-${index}`}
@@ -195,11 +196,11 @@ export default function GradesPage() {
                 <div
                   className={cn(
                     'w-12 sm:w-16 rounded-t-lg transition-all duration-300 group-hover:opacity-80 h-full',
-                    course.finalScore >= 8.5
+                    scoreValue >= 8.5
                       ? 'bg-gradient-to-t from-success/60 to-success'
-                      : course.finalScore >= 7.0
+                      : scoreValue >= 7.0
                       ? 'bg-gradient-to-t from-primary/60 to-primary'
-                      : course.finalScore >= 5.5
+                      : scoreValue >= 5.5
                       ? 'bg-gradient-to-t from-warning/60 to-warning'
                       : 'bg-gradient-to-t from-destructive/60 to-destructive'
                   )}
@@ -208,7 +209,7 @@ export default function GradesPage() {
                 <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                   <div className="glass-card-elevated px-3 py-2 rounded-lg text-sm whitespace-nowrap">
                     <p className="font-semibold">{course.courseName}</p>
-                    <p className="text-muted-foreground">{course.finalScore.toFixed(2)}</p>
+                    <p className="text-muted-foreground">{scoreValue.toFixed(2)}</p>
                   </div>
                 </div>
                 {/* Label */}
@@ -223,9 +224,9 @@ export default function GradesPage() {
 
       {/* Grades by Semester */}
       {transcript.details.map((semester, semesterIndex) => (
-        <div key={semester.semesterId} className="space-y-4">
+        <div key={semesterIndex} className="space-y-4">
           <h2 className="font-display font-bold text-xl">
-            {semester.semesterName}
+            {semester.semester}
             {semester.semesterGPA > 0 && (
               <span className={cn('ml-4 text-base', getGPAColor(semester.semesterGPA))}>
                 GPA: {semester.semesterGPA.toFixed(2)}
@@ -239,11 +240,7 @@ export default function GradesPage() {
                   <tr className="border-b border-border bg-muted/30">
                     <th className="text-left p-4 font-semibold">Môn học</th>
                     <th className="text-center p-4 font-semibold hidden sm:table-cell">TC</th>
-                    <th className="text-center p-4 font-semibold hidden md:table-cell">CC</th>
-                    <th className="text-center p-4 font-semibold hidden md:table-cell">BT</th>
-                    <th className="text-center p-4 font-semibold hidden lg:table-cell">GK</th>
-                    <th className="text-center p-4 font-semibold hidden lg:table-cell">CK</th>
-                    <th className="text-center p-4 font-semibold">Điểm TB</th>
+                    <th className="text-center p-4 font-semibold">Điểm</th>
                     <th className="text-center p-4 font-semibold">Xếp loại</th>
                     <th className="text-center p-4 font-semibold">Trạng thái</th>
                   </tr>
@@ -268,38 +265,18 @@ export default function GradesPage() {
                       <td className="text-center p-4 hidden sm:table-cell">
                         {course.credits}
                       </td>
-                      <td className="text-center p-4 hidden md:table-cell">
-                        <span className={getScoreColor(course.participation)}>
-                          {course.participation.toFixed(1)}
-                        </span>
-                      </td>
-                      <td className="text-center p-4 hidden md:table-cell">
-                        <span className={getScoreColor(course.assignment)}>
-                          {course.assignment.toFixed(1)}
-                        </span>
-                      </td>
-                      <td className="text-center p-4 hidden lg:table-cell">
-                        <span className={getScoreColor(course.midterm)}>
-                          {course.midterm.toFixed(1)}
-                        </span>
-                      </td>
-                      <td className="text-center p-4 hidden lg:table-cell">
-                        <span className={getScoreColor(course.final)}>
-                          {course.final.toFixed(1)}
-                        </span>
-                      </td>
                       <td className="text-center p-4">
                         <span
                           className={cn(
                             'font-bold text-lg',
-                            getScoreColor(course.finalScore)
+                            getScoreColor(course.score ?? 0)
                           )}
                         >
-                          {course.finalScore.toFixed(2)}
+                          {(course.score ?? 0).toFixed(2)}
                         </span>
                       </td>
                       <td className="text-center p-4">
-                        <GradeBadge grade={course.letterGrade} />
+                        <GradeBadge grade={course.grade || ''} />
                       </td>
                       <td className="text-center p-4">
                         <span className={cn(
@@ -335,7 +312,7 @@ export default function GradesPage() {
                       <p className="font-medium">{course.courseName}</p>
                       <p className="text-xs text-muted-foreground">{course.courseCode}</p>
                     </div>
-                    <span className="text-destructive font-bold">{course.finalScore.toFixed(2)}</span>
+                    <span className="text-destructive font-bold">{(course.score ?? 0).toFixed(2)}</span>
                   </div>
                 ))}
               </div>

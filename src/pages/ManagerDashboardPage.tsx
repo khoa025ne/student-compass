@@ -92,7 +92,7 @@ export default function ManagerDashboardPage() {
   const handleViewGrades = async (student: Student) => {
     setSelectedStudent(student);
     try {
-      const grades = await apiClient.getGradesByStudentId(student.id);
+      const grades = await apiClient.getGradesByStudentId(student.studentId);
       setStudentGrades(grades);
       setIsViewGradeDialogOpen(true);
     } catch (error) {
@@ -157,7 +157,7 @@ export default function ManagerDashboardPage() {
 
   // Calculate stats by course/major
   const courseStats = courses.map((course) => {
-    const courseClasses = classes.filter((c) => c.courseName === course.name);
+    const courseClasses = classes.filter((c) => c.courseId === course.courseId);
     const totalStudents = courseClasses.reduce((sum, c) => sum + (c.currentEnrollment || 0), 0);
     return {
       ...course,
@@ -278,8 +278,8 @@ export default function ManagerDashboardPage() {
                   <SelectContent>
                     <SelectItem value="all">Tất cả môn học</SelectItem>
                     {courses.map((course) => (
-                      <SelectItem key={course.id} value={course.id.toString()}>
-                        {course.code} - {course.name}
+                      <SelectItem key={course.courseId} value={course.courseId.toString()}>
+                        {course.courseCode} - {course.courseName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -308,20 +308,16 @@ export default function ManagerDashboardPage() {
                     </TableRow>
                   ) : (
                     filteredStudents.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell className="font-medium">{student.id}</TableCell>
+                      <TableRow key={student.studentId}>
+                        <TableCell className="font-medium">{student.studentCode}</TableCell>
                         <TableCell>{student.fullName}</TableCell>
                         <TableCell>{student.email}</TableCell>
-                        <TableCell>{student.classId}</TableCell>
+                        <TableCell>{student.classCode || 'N/A'}</TableCell>
                         <TableCell>
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              student.status === 'Active'
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-                            }`}
+                            className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                           >
-                            {student.status}
+                            Active
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
@@ -354,12 +350,12 @@ export default function ManagerDashboardPage() {
                 <div className="space-y-3">
                   {courseStats.map((course) => (
                     <div
-                      key={course.id}
+                      key={course.courseId}
                       className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
                     >
                       <div>
-                        <p className="font-medium">{course.name}</p>
-                        <p className="text-sm text-muted-foreground">{course.code}</p>
+                        <p className="font-medium">{course.courseName}</p>
+                        <p className="text-sm text-muted-foreground">{course.courseCode}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">{course.totalStudents} SV</p>
@@ -384,16 +380,16 @@ export default function ManagerDashboardPage() {
                 </h3>
                 <div className="space-y-3">
                   {classes.slice(0, 5).map((classItem) => {
-                    const course = courses.find((c) => c.name === classItem.courseName);
+                    const course = courses.find((c) => c.courseId === classItem.courseId);
                     return (
                       <div
-                        key={classItem.id}
+                        key={classItem.classId}
                         className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
                       >
                         <div>
-                          <p className="font-medium">{classItem.code}</p>
+                          <p className="font-medium">{classItem.classCode || classItem.className}</p>
                           <p className="text-sm text-muted-foreground">
-                            {course?.name || 'N/A'}
+                            {course?.courseName || classItem.courseName || 'N/A'}
                           </p>
                         </div>
                         <div className="text-right">

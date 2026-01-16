@@ -30,6 +30,10 @@ import type {
   UpdateGradeRequest,
   Notification,
   AIAdviceResponse,
+  TransferRequest,
+  CreateTransferRequest,
+  LearningPathRecommendation,
+  AcademicWarning,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:7280/api';
@@ -201,8 +205,8 @@ class ApiClient {
 
   // ============ STUDENTS APIs ============
 
-  async getStudents(): Promise<Student[]> {
-    const response = await this.client.get<Student[]>('/students');
+  async getStudents(filters?: { major?: string; termNo?: number }): Promise<Student[]> {
+    const response = await this.client.get<Student[]>('/students', { params: filters });
     return response.data;
   }
 
@@ -213,6 +217,21 @@ class ApiClient {
 
   async getStudentByCode(studentCode: string): Promise<Student> {
     const response = await this.client.get<Student>(`/students/by-code/${studentCode}`);
+    return response.data;
+  }
+
+  async getStudentsByMajor(major: string): Promise<Student[]> {
+    const response = await this.client.get<Student[]>(`/students/by-major/${major}`);
+    return response.data;
+  }
+
+  async getStudentsByTerm(termNo: number): Promise<Student[]> {
+    const response = await this.client.get<Student[]>(`/students/by-term/${termNo}`);
+    return response.data;
+  }
+
+  async getStudentsByClass(classCode: string): Promise<Student[]> {
+    const response = await this.client.get<Student[]>(`/students/by-class/${classCode}`);
     return response.data;
   }
 
@@ -230,7 +249,7 @@ class ApiClient {
     await this.client.delete(`/students/${id}`);
   }
 
-  async uploadAvatar(studentId: number, file: File): Promise<{ url: string; message: string }> {
+  async uploadStudentAvatar(studentId: number, file: File): Promise<{ url: string; message: string }> {
     const formData = new FormData();
     formData.append('file', file);
     const response = await this.client.post<{ url: string; message: string }>(
@@ -260,8 +279,8 @@ class ApiClient {
 
   // ============ COURSES APIs ============
 
-  async getCourses(): Promise<Course[]> {
-    const response = await this.client.get<Course[]>('/courses');
+  async getCourses(major?: string): Promise<Course[]> {
+    const response = await this.client.get<Course[]>('/courses', { params: major ? { major } : undefined });
     return response.data;
   }
 
@@ -270,10 +289,49 @@ class ApiClient {
     return response.data;
   }
 
+  async getCourseByCode(courseCode: string): Promise<Course> {
+    const response = await this.client.get<Course>(`/courses/by-code/${courseCode}`);
+    return response.data;
+  }
+
+  async getCoursesByMajor(major: string): Promise<Course[]> {
+    const response = await this.client.get<Course[]>(`/courses/by-major/${major}`);
+    return response.data;
+  }
+
+  async createCourse(data: { courseName: string; courseCode: string; credits: number; major?: string; prerequisiteCourseId?: number }): Promise<Course> {
+    const response = await this.client.post<Course>('/courses', data);
+    return response.data;
+  }
+
+  async updateCourse(id: number, data: { courseName?: string; courseCode?: string; credits?: number; major?: string }): Promise<Course> {
+    const response = await this.client.put<Course>(`/courses/${id}`, data);
+    return response.data;
+  }
+
+  async deleteCourse(id: number): Promise<void> {
+    await this.client.delete(`/courses/${id}`);
+  }
+
   // ============ CLASSES APIs ============
+
+  async getClasses(): Promise<CourseClass[]> {
+    const response = await this.client.get<CourseClass[]>('/classes');
+    return response.data;
+  }
+
+  async searchClasses(code: string): Promise<CourseClass[]> {
+    const response = await this.client.get<CourseClass[]>('/classes/search', { params: { code } });
+    return response.data;
+  }
 
   async getClassesBySemester(semesterId: number): Promise<CourseClass[]> {
     const response = await this.client.get<CourseClass[]>(`/classes/semester/${semesterId}`);
+    return response.data;
+  }
+
+  async getClassesByMajor(major: string): Promise<CourseClass[]> {
+    const response = await this.client.get<CourseClass[]>(`/classes/by-major/${major}`);
     return response.data;
   }
 
@@ -282,8 +340,44 @@ class ApiClient {
     return response.data;
   }
 
+  async getStudentsInClass(classId: number): Promise<Student[]> {
+    const response = await this.client.get<Student[]>(`/classes/${classId}/students`);
+    return response.data;
+  }
+
   async createClass(data: CreateClassRequest): Promise<{ message: string; classId: number }> {
     const response = await this.client.post<{ message: string; classId: number }>('/classes', data);
+    return response.data;
+  }
+
+  async updateClass(id: number, data: Partial<CreateClassRequest>): Promise<CourseClass> {
+    const response = await this.client.put<CourseClass>(`/classes/${id}`, data);
+    return response.data;
+  }
+
+  async deleteClass(id: number): Promise<void> {
+    await this.client.delete(`/classes/${id}`);
+  }
+
+  // ============ TRANSFER REQUESTS APIs ============
+
+  async getTransferRequests(): Promise<TransferRequest[]> {
+    const response = await this.client.get<TransferRequest[]>('/transfers');
+    return response.data;
+  }
+
+  async createTransferRequest(data: CreateTransferRequest): Promise<{ message: string }> {
+    const response = await this.client.post<{ message: string }>('/transfers', data);
+    return response.data;
+  }
+
+  async approveTransferRequest(id: number): Promise<{ message: string }> {
+    const response = await this.client.put<{ message: string }>(`/transfers/${id}/approve`);
+    return response.data;
+  }
+
+  async rejectTransferRequest(id: number): Promise<{ message: string }> {
+    const response = await this.client.put<{ message: string }>(`/transfers/${id}/reject`);
     return response.data;
   }
 
@@ -315,7 +409,7 @@ class ApiClient {
       className: s.className,
       courseCode: s.courseCode,
       courseName: s.courseName,
-      credits: s.credits || 0,
+      credits: 0,
       room: s.room,
       schedule: s.schedule,
       dayOfWeekPair: s.dayOfWeekPair,
@@ -323,17 +417,19 @@ class ApiClient {
       enrollmentDate: '',
       status: 'Active',
       semesterName: s.semester,
-      teacherName: s.teacherName,
+      teacherName: '',
     }));
   }
 
   // Helper to get current student ID from stored user
+  // Ưu tiên studentId (từ bảng Student) thay vì userId (từ bảng User)
   private getCurrentStudentId(): number | null {
     const userStr = localStorage.getItem('auth_user');
     if (userStr) {
       try {
         const user = JSON.parse(userStr);
-        return user.userId || null;
+        // Ưu tiên studentId cho Student role, fallback userId
+        return user.studentId || user.userId || null;
       } catch {
         return null;
       }
@@ -347,7 +443,7 @@ class ApiClient {
     const sid = studentId || this.getCurrentStudentId();
     if (!sid) {
       console.warn('No student ID available for getMyGrades');
-      return { studentCode: '', studentName: '', cumulativeGPA: 0, totalCredits: 0, courses: [] };
+      return { studentCode: '', fullName: '', overallGPA: 0, details: [] };
     }
     return this.getStudentTranscript(sid);
   }
@@ -394,10 +490,53 @@ class ApiClient {
     await this.client.post(`/notifications/${notificationId}/read`);
   }
 
+  async markAllNotificationsRead(studentId: number): Promise<void> {
+    await this.client.post(`/notifications/student/${studentId}/read-all`);
+  }
+
+  async getUnreadNotificationCount(studentId: number): Promise<number> {
+    const response = await this.client.get<{ count: number }>(`/notifications/student/${studentId}/unread-count`);
+    return response.data.count;
+  }
+
   // ============ AI ADVISOR APIs ============
 
   async getAIAdvice(studentId: number): Promise<AIAdviceResponse> {
     return this.getStudentAIAnalysis(studentId);
+  }
+
+  // ============ LEARNING PATH APIs ============
+
+  async getLearningPathRecommendation(studentId: number): Promise<LearningPathRecommendation | null> {
+    try {
+      const response = await this.client.get<{ success: boolean; data: LearningPathRecommendation }>(`/learningpath/student/${studentId}`);
+      return response.data.data;
+    } catch {
+      return null;
+    }
+  }
+
+  async generateLearningPath(studentId: number, semesterId?: number): Promise<LearningPathRecommendation> {
+    const response = await this.client.post<{ success: boolean; data: LearningPathRecommendation }>('/learningpath/generate', {
+      studentId,
+      semesterId
+    });
+    return response.data.data;
+  }
+
+  async markLearningPathViewed(recommendationId: number): Promise<void> {
+    await this.client.post(`/learningpath/${recommendationId}/mark-viewed`);
+  }
+
+  // ============ ACADEMIC WARNING APIs ============
+
+  async getAcademicWarnings(studentId: number): Promise<AcademicWarning[]> {
+    const response = await this.client.get<{ success: boolean; data: AcademicWarning[] }>(`/learningpath/warnings/${studentId}`);
+    return response.data.data;
+  }
+
+  async checkWarnings(studentId: number): Promise<void> {
+    await this.client.post(`/learningpath/check-warnings/${studentId}`);
   }
 
   // ============ AVAILABLE CLASSES APIs ============

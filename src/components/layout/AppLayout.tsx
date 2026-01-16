@@ -19,9 +19,13 @@ import {
   Shield,
   Users,
   FileText,
+  Settings,
+  FolderKanban,
+  CalendarRange,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { NotificationBell } from '@/components/ui/notification-bell';
 import { cn } from '@/lib/utils';
 
 interface AppLayoutProps {
@@ -45,6 +49,9 @@ const adminNavItems = [
 
 const managerNavItems = [
   { path: '/manager', label: 'Quản lý học vụ', icon: GraduationCap },
+  { path: '/manager/semesters', label: 'Quản lý học kỳ', icon: CalendarRange },
+  { path: '/manager/classes', label: 'Quản lý lớp học', icon: FolderKanban },
+  { path: '/manager/students', label: 'Quản lý sinh viên', icon: Users },
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -86,108 +93,143 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen mesh-gradient">
-      {/* Floating background shapes */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="floating-shape w-96 h-96 -top-48 -left-48 animate-float-slow" />
-        <div className="floating-shape w-64 h-64 top-1/3 right-0 animate-float" />
-        <div className="floating-shape w-80 h-80 -bottom-40 left-1/4 animate-float-fast" />
-      </div>
-
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50">
-        <div className="glass-card mx-4 mt-4 rounded-2xl">
-          <div className="container mx-auto px-4 sm:px-6">
-            <div className="flex items-center justify-between h-16">
-              {/* Logo */}
-              <Link to="/dashboard" className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
-                  <GraduationCap className="w-6 h-6 text-primary-foreground" />
-                </div>
-                <span className="font-display font-bold text-xl hidden sm:block">
-                  Student Portal
-                </span>
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Sidebar - Fixed left */}
+      <aside className="hidden lg:flex w-64 flex-shrink-0 flex-col" style={{ background: 'hsl(var(--sidebar-background))' }}>
+        {/* Logo/Brand */}
+        <div className="p-6 border-b" style={{ borderColor: 'hsl(var(--sidebar-border))' }}>
+          <Link to="/dashboard" className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'hsl(var(--sidebar-primary))' }}>
+              <GraduationCap className="w-6 h-6" style={{ color: 'hsl(var(--sidebar-primary-foreground))' }} />
+            </div>
+            <div>
+              <h1 className="text-lg font-display font-bold" style={{ color: 'hsl(var(--sidebar-foreground))' }}>
+                Student Compass
+              </h1>
+              <p className="text-xs" style={{ color: 'hsl(var(--sidebar-foreground) / 0.7)' }}>
+                Quản lý học tập
+              </p>
+            </div>
+          </Link>
+        </div>
+        
+        {/* Navigation Menu */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={cn(
+                  'sidebar-nav-item flex items-center gap-3',
+                  isActive && 'sidebar-nav-item-active'
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="font-medium">{item.label}</span>
               </Link>
-
-              {/* Desktop Nav */}
-              <nav className="hidden lg:flex items-center gap-1">
-                {navItems.map((item) => {
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className={cn(
-                        'relative px-4 py-2 rounded-xl font-medium text-sm transition-all duration-300',
-                        isActive
-                          ? 'text-primary'
-                          : 'text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {isActive && (
-                        <motion.div
-                          layoutId="nav-active"
-                          className="absolute inset-0 gradient-bg-subtle rounded-xl"
-                          transition={{ type: 'spring', duration: 0.5 }}
-                        />
-                      )}
-                      <span className="relative flex items-center gap-2">
-                        <item.icon className="w-4 h-4" />
-                        {item.label}
-                      </span>
-                    </Link>
-                  );
-                })}
-              </nav>
-
-              {/* Right side */}
-              <div className="flex items-center gap-3">
-                {/* Theme toggle */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsDark(!isDark)}
-                  className="rounded-xl"
-                >
-                  {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                </Button>
-
-                {/* User info */}
-                <Link to="/profile" className="hidden sm:flex items-center gap-3 hover:opacity-80 transition-opacity">
-                  <div className="text-right">
-                    <p className="text-sm font-medium">
-                      {user?.fullName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{user?.email}</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center text-primary-foreground font-bold">
-                    {user?.fullName?.split(' ').slice(-2).map(n => n[0]).join('')}
-                  </div>
-                </Link>
-
-                {/* Logout */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleLogout}
-                  className="rounded-xl text-destructive hover:bg-destructive/10"
-                >
-                  <LogOut className="w-5 h-5" />
-                </Button>
-
-                {/* Mobile menu toggle */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="lg:hidden rounded-xl"
-                >
-                  {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                </Button>
-              </div>
+            );
+          })}
+          
+          {/* Profile link */}
+          <Link
+            to="/profile"
+            className={cn(
+              'sidebar-nav-item flex items-center gap-3',
+              location.pathname === '/profile' && 'sidebar-nav-item-active'
+            )}
+          >
+            <User className="w-5 h-5" />
+            <span className="font-medium">Hồ sơ</span>
+          </Link>
+        </nav>
+        
+        {/* User section */}
+        <div className="p-4 border-t" style={{ borderColor: 'hsl(var(--sidebar-border))' }}>
+          {/* Notification bell for desktop */}
+          <div className="flex items-center justify-between mb-4 px-3">
+            <span className="text-sm" style={{ color: 'hsl(var(--sidebar-foreground) / 0.7)' }}>
+              Thông báo
+            </span>
+            <NotificationBell />
+          </div>
+          
+          {/* User info */}
+          <div className="flex items-center gap-3 mb-4 px-3">
+            <div 
+              className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm"
+              style={{ 
+                background: 'hsl(var(--sidebar-primary))',
+                color: 'hsl(var(--sidebar-primary-foreground))'
+              }}
+            >
+              {user?.fullName?.split(' ').slice(-2).map(n => n[0]).join('')}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate" style={{ color: 'hsl(var(--sidebar-foreground))' }}>
+                {user?.fullName}
+              </p>
+              <p className="text-xs truncate" style={{ color: 'hsl(var(--sidebar-foreground) / 0.7)' }}>
+                {user?.roleName}
+              </p>
             </div>
           </div>
+          
+          {/* Theme toggle */}
+          <button
+            onClick={() => setIsDark(!isDark)}
+            className="sidebar-nav-item flex items-center gap-3 w-full"
+          >
+            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            <span className="font-medium">{isDark ? 'Sáng' : 'Tối'}</span>
+          </button>
+          
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            className="sidebar-nav-item flex items-center gap-3 w-full mt-1"
+            style={{ color: 'hsl(var(--destructive))' }}
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Đăng Xuất</span>
+          </button>
         </div>
+      </aside>
+      
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Mobile Header */}
+        <header className="lg:hidden glass-card mx-4 mt-4 rounded-xl">
+          <div className="px-4 h-14 flex items-center justify-between">
+            <Link to="/dashboard" className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
+                <GraduationCap className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <span className="font-display font-bold text-lg">Student Compass</span>
+            </Link>
+            
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsDark(!isDark)}
+                className="rounded-lg"
+              >
+                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="rounded-lg"
+              >
+                {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </Button>
+            </div>
+          </div>
+        </header>
 
         {/* Mobile menu */}
         <AnimatePresence>
@@ -196,7 +238,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="lg:hidden glass-card mx-4 mt-2 rounded-2xl overflow-hidden"
+              className="lg:hidden glass-card mx-4 mt-2 rounded-xl overflow-hidden"
             >
               <nav className="p-4 space-y-1">
                 {navItems.map((item) => {
@@ -207,9 +249,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                       to={item.path}
                       onClick={() => setIsMobileMenuOpen(false)}
                       className={cn(
-                        'flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
+                        'flex items-center gap-3 px-4 py-3 rounded-lg transition-all',
                         isActive
-                          ? 'gradient-bg-subtle text-primary'
+                          ? 'bg-primary/10 text-primary'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                       )}
                     >
@@ -222,35 +264,47 @@ export function AppLayout({ children }: AppLayoutProps) {
                   to="/profile"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
+                    'flex items-center gap-3 px-4 py-3 rounded-lg transition-all',
                     location.pathname === '/profile'
-                      ? 'gradient-bg-subtle text-primary'
+                      ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                 >
                   <User className="w-5 h-5" />
                   <span className="font-medium">Hồ sơ</span>
                 </Link>
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-destructive hover:bg-destructive/10 w-full"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="font-medium">Đăng xuất</span>
+                </button>
               </nav>
             </motion.div>
           )}
         </AnimatePresence>
-      </header>
 
-      {/* Main content */}
-      <main className="relative z-10 pt-28 pb-12">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {children}
-          </motion.div>
-        </AnimatePresence>
-      </main>
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="container mx-auto p-6 max-w-7xl">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

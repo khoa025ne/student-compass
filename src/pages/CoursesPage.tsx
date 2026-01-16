@@ -121,9 +121,8 @@ export default function CoursesPage() {
       return;
     }
 
-    // Get studentId from user (need to map userId to studentId)
-    // For now, we'll use a placeholder - in production, you'd get this from user profile
-    const studentId = user?.userId || 0;
+    // Get studentId from user - ưu tiên studentId, fallback userId
+    const studentId = user?.studentId || user?.userId || 0;
     
     if (!studentId) {
       toast.error('Không tìm thấy thông tin sinh viên');
@@ -154,8 +153,8 @@ export default function CoursesPage() {
         toast.error(response.message || 'Đăng ký thất bại');
       }
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { Message?: string } } };
-      toast.error(err.response?.data?.Message || 'Đăng ký thất bại. Vui lòng thử lại.');
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
     } finally {
       setEnrollingId(null);
     }

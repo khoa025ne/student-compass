@@ -110,7 +110,7 @@ export default function SchedulePage() {
     try {
       // Get studentId from user - for now use userId directly
       // In production, you might need to map userId to studentId
-      const studentId = user?.userId || 0;
+      const studentId = user?.studentId || user?.userId || 0;
       
       if (studentId === 0) {
         setSchedule([]);

@@ -15,6 +15,7 @@ export enum TimeSlot {
 // ============ USER & AUTH TYPES ============
 export interface User {
   userId: number;
+  studentId?: number; // StudentId nếu role là Student
   email: string;
   fullName: string;
   phoneNumber?: string;
@@ -190,14 +191,16 @@ export interface CourseClass {
 }
 
 export interface CreateClassRequest {
+  classCode: string;
   className: string;
   courseId: number;
   semesterId: number;
   room: string;
-  schedule?: string;
+  schedule: string;
   maxCapacity: number;
   dayOfWeekPair: DayOfWeekPair;
   timeSlot: TimeSlot;
+  teacherId?: number;
 }
 
 export interface UpdateClassRequest extends Partial<CreateClassRequest> {}
@@ -330,6 +333,7 @@ export interface Notification {
   studentId: number;
   title: string;
   message: string;
+  type?: 'Info' | 'ScoreUpdate' | 'Warning' | 'Achievement' | 'LearningPath' | 'success' | 'warning' | 'error' | 'info';
   isRead: boolean;
   createdAt: string;
 }
@@ -343,6 +347,45 @@ export interface CreateNotificationRequest {
 // ============ AI ADVISOR TYPES ============
 export interface AIAdviceResponse {
   analysis: string;
+}
+
+// ============ LEARNING PATH TYPES ============
+export interface RecommendedCourse {
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  priority: number;
+  reason: string;
+}
+
+export interface LearningPathRecommendation {
+  recommendationId: number;
+  studentId: number;
+  semesterId: number;
+  semesterCode?: string;
+  recommendationDate: string;
+  recommendedCourses: {
+    recommendedCourses: RecommendedCourse[];
+    overallStrategy: string;
+    warnings: string[];
+  } | string;
+  overallStrategy: string;
+  aiModelUsed: string;
+  isViewed: boolean;
+}
+
+export interface GenerateLearningPathRequest {
+  studentId: number;
+  semesterId?: number;
+}
+
+// ============ ACADEMIC WARNING TYPES ============
+export interface AcademicWarning {
+  warningType: string;
+  title: string;
+  description: string;
+  severity: 'Critical' | 'Warning' | 'Info';
+  detectedAt: string;
 }
 
 // ============ API RESPONSE TYPES ============

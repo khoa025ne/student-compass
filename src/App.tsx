@@ -23,6 +23,7 @@ import AdminAccountsPage from "@/pages/AdminAccountsPage";
 import ManagerDashboardPage from "@/pages/ManagerDashboardPage";
 import SemesterManagementPage from "@/pages/SemesterManagementPage";
 import ClassManagementPage from "@/pages/ClassManagementPage";
+import StudentManagementPage from "@/pages/StudentManagementPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -107,6 +108,16 @@ function AppRoutes() {
           <ProtectedRoute allowedRoles={['Manager']}>
             <AppLayout>
               <ClassManagementPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/students"
+        element={
+          <ProtectedRoute allowedRoles={['Manager', 'Admin']}>
+            <AppLayout>
+              <StudentManagementPage />
             </AppLayout>
           </ProtectedRoute>
         }

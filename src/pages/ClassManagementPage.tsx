@@ -75,10 +75,12 @@ export default function ClassManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   
   const [formData, setFormData] = useState<CreateClassRequest>({
+    classCode: '',
     className: '',
     courseId: 0,
     semesterId: 0,
     room: '',
+    schedule: '',
     maxCapacity: 30,
     dayOfWeekPair: 1 as DayOfWeekPair,
     timeSlot: 1 as TimeSlot,
@@ -132,14 +134,19 @@ export default function ClassManagementPage() {
   };
 
   const handleCreate = async () => {
-    if (!formData.className || !formData.courseId || !formData.semesterId || !formData.room) {
+    if (!formData.classCode || !formData.className || !formData.courseId || !formData.semesterId || !formData.room) {
       toast.error('Vui lòng điền đầy đủ thông tin');
       return;
     }
 
+    // Tự động tạo schedule từ dayOfWeekPair
+    const dayPairLabel = DAY_OF_WEEK_PAIRS.find(d => d.value === formData.dayOfWeekPair)?.label || '';
+    const scheduleText = dayPairLabel.split(' ')[0] || 'Mon-Wed-Fri';
+    const dataToSend = { ...formData, schedule: formData.schedule || scheduleText };
+
     setIsSubmitting(true);
     try {
-      await apiClient.createClass(formData);
+      await apiClient.createClass(dataToSend);
       toast.success('Mở lớp thành công!');
       setIsCreateDialogOpen(false);
       resetForm();
@@ -148,8 +155,15 @@ export default function ClassManagementPage() {
       }
     } catch (error: unknown) {
       console.error('Failed to create class:', error);
-      const err = error as { response?: { data?: string } };
-      toast.error(err.response?.data || 'Không thể mở lớp');
+      const err = error as { response?: { data?: { title?: string; errors?: Record<string, string[]> } | string } };
+      const errorData = err.response?.data;
+      if (typeof errorData === 'string') {
+        toast.error(errorData);
+      } else if (errorData?.title) {
+        toast.error(errorData.title);
+      } else {
+        toast.error('Không thể mở lớp');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -157,10 +171,12 @@ export default function ClassManagementPage() {
 
   const resetForm = () => {
     setFormData({
+      classCode: '',
       className: '',
       courseId: 0,
       semesterId: selectedSemester || 0,
       room: '',
+      schedule: '',
       maxCapacity: 30,
       dayOfWeekPair: 1 as DayOfWeekPair,
       timeSlot: 1 as TimeSlot,
@@ -328,14 +344,25 @@ export default function ClassManagementPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="className">Tên lớp</Label>
-              <Input
-                id="className"
-                placeholder="VD: SE1801"
-                value={formData.className}
-                onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="classCode">Mã lớp</Label>
+                <Input
+                  id="classCode"
+                  placeholder="VD: SE1801-JAVA"
+                  value={formData.classCode}
+                  onChange={(e) => setFormData({ ...formData, classCode: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="className">Tên lớp</Label>
+                <Input
+                  id="className"
+                  placeholder="VD: SE1801"
+                  value={formData.className}
+                  onChange={(e) => setFormData({ ...formData, className: e.target.value })}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

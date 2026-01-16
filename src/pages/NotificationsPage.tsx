@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,17 @@ import {
   Info, 
   AlertTriangle,
   Check,
-  Trash2
+  Trash2,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  GraduationCap,
+  TrendingUp,
+  Award
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
+import { useSignalRNotifications } from '@/hooks/use-signalr-notifications';
 import type { Notification } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -63,7 +70,30 @@ export default function NotificationsPage() {
   const { user } = useAuthStore();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'score' | 'warning' | 'achievement'>('all');
+
+  // SignalR real-time notifications
+  const { 
+    isConnected, 
+    notifications: realtimeNotifications 
+  } = useSignalRNotifications();
+
+  // Merge realtime notifications with existing ones
+  useEffect(() => {
+    if (realtimeNotifications.length > 0) {
+      setNotifications(prev => {
+        const existingIds = new Set(prev.map(n => n.notificationId));
+        const newNotifications = realtimeNotifications.filter(
+          n => !existingIds.has(n.notificationId)
+        );
+        if (newNotifications.length > 0) {
+          toast.info(`Có ${newNotifications.length} thông báo mới!`);
+          return [...newNotifications, ...prev];
+        }
+        return prev;
+      });
+    }
+  }, [realtimeNotifications]);
 
   useEffect(() => {
     if (user?.userId) {
@@ -74,7 +104,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
     setIsLoading(true);
     try {
-      const studentId = user?.userId || 0;
+      const studentId = user?.studentId || user?.userId || 0;
       if (studentId === 0) {
         setNotifications(mockNotifications);
         return;
@@ -95,9 +125,18 @@ export default function NotificationsPage() {
       case 'success':
         return <CheckCircle2 className="w-5 h-5 text-success" />;
       case 'warning':
+      case 'Warning':
         return <AlertTriangle className="w-5 h-5 text-warning" />;
       case 'error':
         return <AlertCircle className="w-5 h-5 text-destructive" />;
+      case 'ScoreUpdate':
+        return <GraduationCap className="w-5 h-5 text-primary" />;
+      case 'Achievement':
+        return <Award className="w-5 h-5 text-yellow-500" />;
+      case 'LearningPath':
+        return <TrendingUp className="w-5 h-5 text-green-500" />;
+      case 'Info':
+      case 'info':
       default:
         return <Info className="w-5 h-5 text-primary" />;
     }
@@ -106,13 +145,34 @@ export default function NotificationsPage() {
   const getTypeBadgeVariant = (type: Notification['type']) => {
     switch (type) {
       case 'success':
+      case 'Achievement':
         return 'success';
       case 'warning':
+      case 'Warning':
         return 'warning';
       case 'error':
         return 'destructive';
+      case 'ScoreUpdate':
+      case 'LearningPath':
+      case 'Info':
+      case 'info':
       default:
         return 'default';
+    }
+  };
+
+  const getTypeLabel = (type: Notification['type']) => {
+    switch (type) {
+      case 'success': return 'Thành công';
+      case 'warning': 
+      case 'Warning': return 'Cảnh báo';
+      case 'error': return 'Lỗi';
+      case 'ScoreUpdate': return 'Cập nhật điểm';
+      case 'Achievement': return 'Thành tích';
+      case 'LearningPath': return 'Lộ trình học';
+      case 'Info':
+      case 'info':
+      default: return 'Thông tin';
     }
   };
 
@@ -156,8 +216,11 @@ export default function NotificationsPage() {
   const markAllAsRead = async () => {
     const unreadNotifications = notifications.filter(n => !n.isRead);
     try {
-      // Mark all unread notifications as read
-      await Promise.all(unreadNotifications.map(n => apiClient.markNotificationRead(n.notificationId)));
+      // Use new API endpoint to mark all as read
+      const studentId = user?.studentId || user?.userId || 0;
+      if (studentId > 0) {
+        await apiClient.markAllNotificationsRead(studentId);
+      }
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       toast.success('Đã đánh dấu tất cả là đã đọc');
     } catch (error) {
@@ -173,9 +236,13 @@ export default function NotificationsPage() {
     toast.success('Đã xóa thông báo');
   };
 
-  const filteredNotifications = filter === 'unread'
-    ? notifications.filter(n => !n.isRead)
-    : notifications;
+  const filteredNotifications = notifications.filter(n => {
+    if (filter === 'unread') return !n.isRead;
+    if (filter === 'score') return n.type === 'ScoreUpdate';
+    if (filter === 'warning') return n.type === 'warning' || n.type === 'Warning' || n.type === 'error';
+    if (filter === 'achievement') return n.type === 'Achievement' || n.type === 'LearningPath';
+    return true;
+  });
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -205,13 +272,21 @@ export default function NotificationsPage() {
                 {unreadCount} mới
               </span>
             )}
+            {/* SignalR connection status */}
+            <div className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded-full text-xs",
+              isConnected ? "bg-green-500/20 text-green-500" : "bg-red-500/20 text-red-500"
+            )}>
+              {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              {isConnected ? "Real-time" : "Offline"}
+            </div>
           </div>
           <p className="text-muted-foreground">
-            Quản lý các thông báo của bạn
+            Quản lý các thông báo của bạn {isConnected && '• Nhận thông báo real-time'}
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={filter === 'all' ? 'default' : 'outline'}
             size="sm"
@@ -225,6 +300,37 @@ export default function NotificationsPage() {
             onClick={() => setFilter('unread')}
           >
             Chưa đọc ({unreadCount})
+          </Button>
+          <Button
+            variant={filter === 'score' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('score')}
+          >
+            <GraduationCap className="w-4 h-4 mr-1" />
+            Điểm số
+          </Button>
+          <Button
+            variant={filter === 'warning' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('warning')}
+          >
+            <AlertTriangle className="w-4 h-4 mr-1" />
+            Cảnh báo
+          </Button>
+          <Button
+            variant={filter === 'achievement' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('achievement')}
+          >
+            <Award className="w-4 h-4 mr-1" />
+            Thành tích
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchNotifications}
+          >
+            <RefreshCw className="w-4 h-4" />
           </Button>
           {unreadCount > 0 && (
             <Button
@@ -272,9 +378,7 @@ export default function NotificationsPage() {
                     <h3 className="font-semibold truncate">{notification.title}</h3>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <StatusBadge variant={getTypeBadgeVariant(notification.type) as 'default' | 'destructive' | 'secondary' | 'outline'}>
-                        {notification.type === 'success' ? 'Thành công' :
-                         notification.type === 'warning' ? 'Cảnh báo' :
-                         notification.type === 'error' ? 'Lỗi' : 'Thông tin'}
+                        {getTypeLabel(notification.type)}
                       </StatusBadge>
                       {!notification.isRead && (
                         <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />

@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
-import { GlassCard } from '@/components/ui/glass-card';
-import { StatCard } from '@/components/ui/stat-card';
-import { StatusBadge, GradeBadge } from '@/components/ui/status-badge';
+import { GradeBadge } from '@/components/ui/status-badge';
 import { LoadingSpinner } from '@/components/ui/loading';
 import {
   BookOpen,
@@ -17,7 +15,7 @@ import {
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api';
-import type { MyEnrollment, CourseGrade, TranscriptResponse } from '@/types';
+import type { MyEnrollment, TranscriptCourse, TranscriptResponse } from '@/types';
 
 interface DashboardStats {
   gpa: number;
@@ -84,18 +82,23 @@ export default function DashboardPage() {
       ]);
 
       // Calculate stats from transcript
-      if (transcript && transcript.courses && transcript.courses.length > 0) {
-        const totalCredits = transcript.courses.reduce((sum: number, g: CourseGrade) => sum + g.credits, 0);
+      // Flatten all courses from all semesters
+      const allCourses = transcript.details?.flatMap(sem => sem.courses) || [];
+      
+      if (allCourses.length > 0) {
+        const totalCredits = allCourses
+          .filter((c: TranscriptCourse) => c.status === 'Passed')
+          .reduce((sum: number, c: TranscriptCourse) => sum + c.credits, 0);
 
         setStats({
-          gpa: transcript.cumulativeGPA,
+          gpa: transcript.overallGPA,
           credits: totalCredits,
           courses: enrollments.length,
           attendance: 95, // Placeholder, API doesn't provide this
         });
       } else {
         setStats({
-          gpa: 0,
+          gpa: transcript.overallGPA || 0,
           credits: 0,
           courses: enrollments.length,
           attendance: 0,
@@ -115,35 +118,36 @@ export default function DashboardPage() {
       };
       const todayName = dayMap[dayOfWeek];
 
-      // Filter today's schedule
+      // Filter today's schedule - schedule có thể undefined
       const todayItems = enrollments
-        .filter((e: MyEnrollment) => e.schedule.includes(todayName))
+        .filter((e: MyEnrollment) => e.schedule?.includes(todayName))
         .map((e: MyEnrollment, index: number) => {
           // Extract time from schedule like "Thứ 2, 08:00-10:00"
-          const timeMatch = e.schedule.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+          const timeMatch = e.schedule?.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
           const time = timeMatch ? `${timeMatch[1]} - ${timeMatch[2]}` : 'TBD';
 
           return {
             id: index + 1,
             time,
             course: e.courseName,
-            code: e.classCode,
+            code: e.courseCode, // Dùng courseCode thay vì classCode
             room: e.room,
-            teacher: e.teacherName,
+            teacher: e.semesterName || '', // Dùng semesterName thay vì teacherName
           };
         });
 
       setTodaySchedule(todayItems);
 
       // Map enrollments to current courses with grades
+      // Use the already flattened allCourses from above
       const coursesWithGrades = enrollments.map((e: MyEnrollment, index: number) => {
-        const gradeInfo = transcript?.courses?.find((g: CourseGrade) => g.courseCode === e.courseCode);
+        const gradeInfo = allCourses.find((g: TranscriptCourse) => g.courseCode === e.courseCode);
         return {
           id: index + 1,
           code: e.courseCode,
           name: e.courseName,
           credits: e.credits,
-          grade: gradeInfo?.letterGrade || 'N/A',
+          grade: gradeInfo?.grade || 'N/A',
         };
       });
 
@@ -168,85 +172,79 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 space-y-8">
-      {/* Hero Section */}
+    <div className="space-y-6">
+      {/* Hero Section - Đơn giản hơn, chuyên nghiệp */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl gradient-bg p-8 md:p-12"
+        className="bg-card rounded-lg p-8 border border-border shadow-sm"
       >
-        <div className="relative z-10">
-          <motion.p
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-primary-foreground/80 text-lg"
-          >
-            Xin chào,
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-4xl md:text-5xl font-display font-bold text-primary-foreground mt-2"
-          >
-            {user?.fullName}
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="text-primary-foreground/70 mt-4 max-w-lg"
-          >
-            Chào mừng bạn quay lại. Học kỳ này bạn đang học{' '}
-            <span className="text-primary-foreground font-semibold">
-              {stats.courses} môn
-            </span>{' '}
-            với tổng cộng{' '}
-            <span className="text-primary-foreground font-semibold">
-              {stats.credits} tín chỉ
-            </span>
-            .
-          </motion.p>
-        </div>
-
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-1/2 w-48 h-48 bg-white/10 rounded-full blur-2xl translate-y-1/2" />
+        <p className="text-muted-foreground text-base">Xin chào,</p>
+        <h1 className="text-3xl font-display font-bold text-foreground mt-2">
+          {user?.fullName}
+        </h1>
+        <p className="text-muted-foreground mt-3">
+          Chào mừng bạn quay lại. Học kỳ này bạn đang học{' '}
+          <span className="text-foreground font-semibold">{stats.courses} môn</span>
+          {' '}với tổng cộng{' '}
+          <span className="text-foreground font-semibold">{stats.credits} tín chỉ</span>.
+        </p>
       </motion.div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Style mới */}
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
         className="grid grid-cols-2 lg:grid-cols-4 gap-4"
       >
-        <StatCard
-          title="GPA Tích Lũy"
-          value={stats.gpa.toFixed(2)}
-          icon={<TrendingUp className="w-6 h-6" />}
-          trend={{ value: 3.2, isPositive: true }}
-          delay={0.1}
-        />
-        <StatCard
-          title="Tín Chỉ Tích Lũy"
-          value={stats.credits}
-          icon={<BookOpen className="w-6 h-6" />}
-          delay={0.2}
-        />
-        <StatCard
-          title="Môn Đang Học"
-          value={stats.courses}
-          icon={<Calendar className="w-6 h-6" />}
-          delay={0.3}
-        />
-        <StatCard
-          title="Tỷ Lệ Chuyên Cần"
-          value={`${stats.attendance}%`}
-          icon={<Clock className="w-6 h-6" />}
-          delay={0.4}
-        />
+        <motion.div variants={itemVariants} className="bg-card rounded-lg p-6 border border-border shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">GPA Tích Lũy</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{stats.gpa.toFixed(2)}</p>
+            </div>
+            <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-secondary" />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="bg-card rounded-lg p-6 border border-border shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Tín Chỉ Tích Lũy</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{stats.credits}</p>
+            </div>
+            <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center">
+              <BookOpen className="w-6 h-6 text-accent-foreground" />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="bg-card rounded-lg p-6 border border-border shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Môn Đang Học</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{stats.courses}</p>
+            </div>
+            <div className="w-12 h-12 rounded-lg bg-secondary/20 flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-secondary" />
+            </div>
+          </div>
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="bg-card rounded-lg p-6 border border-border shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Chuyên Cần</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{stats.attendance}%</p>
+            </div>
+            <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+              <Clock className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </motion.div>
       </motion.div>
 
       {/* Main Content Grid */}
@@ -258,69 +256,85 @@ export default function DashboardPage() {
           animate="visible"
           className="lg:col-span-2 space-y-4"
         >
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-display font-bold">Lịch học hôm nay</h2>
-            <Link to="/schedule">
-              <Button variant="ghost" size="sm" className="text-primary">
-                Xem tất cả <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {todaySchedule.map((item, index) => (
-              <motion.div
-                key={item.id}
-                variants={itemVariants}
-                transition={{ delay: index * 0.1 }}
-              >
-                <GlassCard className="flex items-center gap-4 p-4" delay={0.1 * index}>
-                  <div className="w-16 text-center">
-                    <div className="gradient-bg rounded-xl p-3">
-                      <Clock className="w-5 h-5 mx-auto text-primary-foreground" />
+          <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+            <div className="px-6 py-4 table-header-bg border-b border-border">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-display font-bold text-foreground">
+                  Lịch học hôm nay
+                </h2>
+                <Link to="/schedule">
+                  <Button variant="ghost" size="sm" className="text-secondary hover:text-secondary/80">
+                    Xem tất cả <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            
+            <div className="p-4 space-y-3">
+              {todaySchedule.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>Không có lịch học hôm nay</p>
+                </div>
+              ) : (
+                todaySchedule.map((item, index) => (
+                  <motion.div
+                    key={item.id}
+                    variants={itemVariants}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="w-14 text-center">
+                      <div className="bg-secondary rounded-lg p-3">
+                        <Clock className="w-5 h-5 mx-auto text-white" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold truncate">{item.course}</p>
-                      <StatusBadge variant="secondary">{item.code}</StatusBadge>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-semibold truncate text-foreground">{item.course}</p>
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-primary/20 text-foreground">
+                          {item.code}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{item.time}</p>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {item.room}
+                        </span>
+                        <span>|</span>
+                        <span>{item.teacher}</span>
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">{item.time}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        {item.room}
-                      </span>
-                      <span>|</span>
-                      <span>{item.teacher}</span>
-                    </div>
-                  </div>
-                </GlassCard>
-              </motion.div>
-            ))}
+                  </motion.div>
+                ))
+              )}
+            </div>
           </div>
         </motion.div>
 
         {/* Right Sidebar */}
         <div className="space-y-6">
           {/* Current Courses */}
-          <GlassCard delay={0.3}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold">Môn đang học</h3>
-              <Link to="/grades">
-                <Button variant="ghost" size="sm" className="text-primary h-8 px-2">
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </Link>
+          <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden">
+            <div className="px-6 py-4 table-header-bg border-b border-border">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display font-bold text-foreground">Môn đang học</h3>
+                <Link to="/grades">
+                  <Button variant="ghost" size="sm" className="text-secondary h-8 px-2">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
             </div>
-            <div className="space-y-3">
+            <div className="p-4 space-y-3">
               {currentCourses.map((course) => (
                 <div
                   key={course.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-muted/50 hover:bg-muted/80 transition-colors"
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
                 >
                   <div>
-                    <p className="font-medium text-sm">{course.name}</p>
+                    <p className="font-medium text-sm text-foreground">{course.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {course.code} • {course.credits} TC
                     </p>
@@ -329,28 +343,28 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
-          </GlassCard>
+          </div>
 
           {/* AI Advisor Teaser */}
-          <GlassCard className="gradient-border" delay={0.4}>
+          <div className="bg-card rounded-lg border border-border shadow-sm p-6">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl gradient-bg flex items-center justify-center shrink-0 glow-primary">
-                <Sparkles className="w-6 h-6 text-primary-foreground" />
+              <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div className="space-y-2">
-                <h3 className="font-display font-bold">Tư vấn AI</h3>
+                <h3 className="font-display font-bold text-foreground">Tư vấn AI</h3>
                 <p className="text-sm text-muted-foreground">
                   Nhận lời khuyên học tập được cá nhân hóa dựa trên kết quả của bạn.
                 </p>
                 <Link to="/ai-advisor">
-                  <Button size="sm" className="gradient-bg text-primary-foreground mt-2">
+                  <Button size="sm" className="bg-secondary hover:bg-secondary/90 text-white mt-2">
                     Khám phá ngay
                     <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 </Link>
               </div>
             </div>
-          </GlassCard>
+          </div>
         </div>
       </div>
     </div>
